@@ -1,6 +1,6 @@
 /* Mapa de Compassos — estilos (design "Estúdio": escuro, ao estilo de um programa de produção musical)
-   Layout: barra de topo com a música; à esquerda as secções com mini-faixas de cor; ao centro o esquema
-   (quadrados com a cor da nota) e a tablatura; em baixo o leitor, com a música inteira em "código de barras". */
+   Layout: barra de topo com a música; o esquema (quadrados com a cor da nota) ao lado da tablatura;
+   em baixo o leitor, com uma barra de progresso neutra. */
 :root {
   color-scheme: dark;
   --bg: #0e0f13;
@@ -23,7 +23,6 @@
   --f-body: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
   --r-lg: 14px; --r-md: 10px; --r-sm: 8px;
-  --side-w: 248px;
 }
 
 * { box-sizing: border-box; }
@@ -69,31 +68,13 @@ svg.f { fill: currentColor; stroke: none; }
 .track-pick:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* ---------- Estrutura ---------- */
-.app { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); align-items: start; }
-.side { position: sticky; top: env(safe-area-inset-top, 0px); max-height: calc(100vh - var(--dock-h, 120px)); overflow-y: auto;
-  padding: 18px 12px 24px max(12px, env(safe-area-inset-left, 0px)); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; align-self: stretch; }
-.side-label { font: 500 11px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); padding: 2px 10px 8px; }
-.side-label:not(:first-child) { margin-top: 18px; }
-.side-list { display: flex; flex-direction: column; gap: 2px; }
-.side-item { position: relative; border-radius: var(--r-sm); }
-.side-item.cur, .side-item:hover { background: var(--panel-2); }
-.side-go { width: 100%; display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 10px 40px 10px 10px; border: 0; background: transparent; color: var(--ink); border-radius: var(--r-sm); }
-.side-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.side-name { font-weight: 600; font-size: 13px; letter-spacing: .03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-range { font: 400 11px var(--f-mono); color: var(--ink-soft); white-space: nowrap; }
-.strip { display: flex; gap: 2px; }
-.strip i { flex: 1 1 0; height: 6px; border-radius: 2px; background: var(--c, var(--line-2)); }
-.side-loopinfo { font: 500 11px var(--f-mono); color: var(--accent); }
-.side-loop { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 6px; border: 0; background: transparent; color: var(--ink-soft); display: grid; place-items: center; }
-.side-loop:hover { background: var(--line-2); color: var(--ink); }
-.side-loop.on { background: var(--accent); color: var(--accent-ink); }
-.side-loop svg.i { width: 14px; height: 14px; }
+.app { display: block; }
 
-.notekey { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 0 6px; }
-.notekey span { font: 600 11px var(--f-mono); height: 24px; display: grid; place-items: center; border-radius: 6px;
+.notekey { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 14px; }
+.notekey span { font: 600 10px var(--f-mono); height: 20px; min-width: 26px; padding: 0 4px; display: grid; place-items: center; border-radius: 5px;
   background: color-mix(in srgb, var(--nc) 22%, var(--panel)); box-shadow: inset 0 -2px 0 var(--nc); }
 
-.content { min-width: 0; padding: 20px max(24px, env(safe-area-inset-right, 0px)) calc(var(--dock-h, 120px) + 32px) 24px; }
+.content { min-width: 0; max-width: 1440px; margin: 0 auto; padding: 20px max(24px, env(safe-area-inset-right, 0px)) calc(var(--dock-h, 120px) + 32px) max(24px, env(safe-area-inset-left, 0px)); }
 .error { background: var(--err-bg); color: var(--err-ink); padding: 12px 16px; border-radius: var(--r-md); margin-bottom: 16px; font-weight: 500; }
 .cols { display: grid; grid-template-columns: minmax(300px, 460px) minmax(0, 1fr); gap: 24px; align-items: start; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; min-height: 30px; }
@@ -155,12 +136,9 @@ svg.f { fill: currentColor; stroke: none; }
 .dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--dock); border-top: 1px solid var(--line);
   padding: 10px max(24px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
   display: flex; flex-direction: column; gap: 10px; }
-.timeline { display: flex; gap: 1px; height: 22px; border-radius: 6px; overflow: hidden; cursor: pointer; }
-.timeline i { flex: 1 1 0; background: color-mix(in srgb, var(--c, var(--line-2)) 40%, var(--dock)); transition: background .1s; }
-.timeline i.done { background: var(--c, var(--line-2)); }
-.timeline i.cur { background: var(--ink-strong); }
-.timeline i.sec-start { margin-left: 3px; }
-.timeline i:hover { filter: brightness(1.25); }
+.progress { position: relative; height: 4px; border-radius: 999px; background: var(--line-2); cursor: pointer; }
+.progress::before { content: ""; position: absolute; inset: -8px 0; }
+.progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--ink-strong); transition: width .15s linear; }
 .dock-row { display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap; }
 .tp { display: flex; align-items: center; gap: 4px; }
 .ibtn { width: 38px; height: 38px; border-radius: 50%; border: 0; background: transparent; color: var(--ink); display: grid; place-items: center; }
@@ -230,12 +208,6 @@ svg.f { fill: currentColor; stroke: none; }
   #tabScroll { max-height: none; }
 }
 @media (max-width: 860px) {
-  .app { grid-template-columns: minmax(0, 1fr); }
-  .side { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); }
-  .side-label { display: none; }
-  .side-list { flex-direction: row; overflow-x: auto; gap: 6px; }
-  .side-item { flex: 0 0 170px; background: var(--panel); }
-  .notekey { display: none; }
   .content { padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(var(--dock-h, 120px) + 24px) max(16px, env(safe-area-inset-left, 0px)); }
   .top { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .vsep { display: none; }

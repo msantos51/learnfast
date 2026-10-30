@@ -4,7 +4,7 @@ import type * as AlphaTab from '@coderline/alphatab';
 import { analyzeBar, isBassTrack, label, sectionsFromScore, type LabelOptions, type Section } from './analysis/analyze';
 import { parseScore } from './analysis/parse';
 import { pitchClassesOf } from './app/notes';
-import { exportRows, toText, toTsv } from './app/export';
+import { exportPdf } from './app/pdf';
 import { VisualDelay } from './app/sync';
 
 type Score = AlphaTab.model.Score;
@@ -117,7 +117,8 @@ function loadBytes(bytes: Uint8Array, name: string, isSample: boolean) {
 
   const saved = storage.get<SavedSong>('mapa:' + st.fileKey);
   // Instrumento: o último escolhido para esta música; senão o baixo; senão o primeiro com notas.
-  st.viewTrack = saved?.track != null && s.tracks[saved.track] ? saved.track : bassIdx ?? pitched[0] ?? 0;
+  const savedOk = saved?.track != null && s.tracks[saved.track] && !isPercussion(s.tracks[saved.track]);
+  st.viewTrack = savedOk ? saved!.track! : bassIdx ?? pitched[0] ?? 0;
   st.sections = saved?.sections?.length ? saved.sections : sectionsFromScore(s);
   st.overridesByTrack = saved?.overridesByTrack ?? (saved?.overrides ? { [st.viewTrack]: saved.overrides } : {});
   if (saved?.perRow) { st.perRow = saved.perRow; select('perRow').value = String(saved.perRow); }
@@ -138,17 +139,17 @@ function renderInfo(name: string) {
 const isPercussion = (t: Track) => t.staves.every(x => x.isPercussion);
 function trackLabel(t: Track, i: number) {
   const name = t.name || 'Pista ' + (i + 1);
-  const kind = isPercussion(t) ? 'bateria' : isBassTrack(t) ? 'baixo' : '';
-  // Só acrescenta o tipo quando o nome ainda não o diz ("Baixo" fica "Baixo", não "Baixo · baixo").
-  return kind && !/bass|baixo|bajo|drum|bateria|perc/i.test(name) ? name + ' · ' + kind : name;
+  // Só acrescenta "baixo" quando o nome ainda não o diz ("Baixo" fica "Baixo", não "Baixo · baixo").
+  return isBassTrack(t) && !/bass|baixo|bajo/i.test(name) ? name + ' · baixo' : name;
 }
 
-/** Preenche os dois seletores de instrumento (ajustes e cabeçalho do esquema). */
+/** Preenche os dois seletores de instrumento (ajustes e barra de topo). A bateria fica de fora: não tem tom. */
 function renderTrackControls() {
   const s = score();
   for (const sel of [select('viewTrack'), select('trackQuick')]) {
     sel.innerHTML = '';
     s.tracks.forEach((t, i) => {
+      if (isPercussion(t)) return;
       const o = document.createElement('option'); o.value = String(i); o.textContent = trackLabel(t, i);
       o.selected = i === st.viewTrack; sel.append(o);
     });
@@ -190,12 +191,6 @@ function colorCell(cell: HTMLElement, text: string) {
   cell.dataset.pc = String(pcs[0]); cell.style.setProperty('--nc', 'var(--n' + pcs[0] + ')');
   if (pcs.length === 2 && pcs[1] !== pcs[0]) { cell.classList.add('two'); cell.style.setProperty('--nc2', 'var(--n' + pcs[1] + ')'); }
 }
-/** Cor da nota (raiz) de um compasso, ou '' sem cor. */
-function barColor(i: number) {
-  if (!input('optColors').checked) return '';
-  const pc = pitchClassesOf(barText(i))[0];
-  return pc == null ? '' : 'var(--n' + pc + ')';
-}
 function renderNoteKey() {
   const o = opts(), key = $('noteKey');
   key.hidden = !input('optColors').checked; key.innerHTML = '';
@@ -207,7 +202,6 @@ function renderNoteKey() {
 }
 
 const ICON_LOOP = '<svg class="i" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>';
-const ICON_MERGE = '<svg class="i" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
 
 function selectText(el: HTMLElement) {
   const r = document.createRange(); r.selectNodeContents(el);
@@ -220,10 +214,9 @@ function renderChart() {
   chart.innerHTML = '';
   chart.classList.toggle('colored', input('optColors').checked);
   renderNoteKey();
-  const t = score().tracks[st.viewTrack];
-  if (isPercussion(t)) {
+  if (!st.score?.tracks.some(t => !isPercussion(t))) {
     const note = document.createElement('p'); note.className = 'chart-empty';
-    note.textContent = 'A bateria não tem notas com altura, por isso não há tom para detetar. Escolhe outro instrumento no menu ao lado de “Esquema”.';
+    note.textContent = 'Esta música não tem nenhum instrumento com notas (só bateria), por isso não há tom para mostrar.';
     chart.append(note);
   }
   st.sections.forEach((sec, k) => {
@@ -232,7 +225,7 @@ function renderChart() {
     const head = document.createElement('div'); head.className = 'sec-head';
     const mark = document.createElement('div'); mark.className = 'mark'; mark.contentEditable = 'true'; mark.spellcheck = false;
     mark.textContent = sec.name; mark.setAttribute('aria-label', 'Nome da secção');
-    mark.addEventListener('input', () => { sec.name = mark.textContent?.trim() || 'SECÇÃO'; save(); renderTimeline(); });
+    mark.addEventListener('input', () => { sec.name = mark.textContent?.trim() || 'SECÇÃO'; save(); });
     mark.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); mark.blur(); } });
     const meta = document.createElement('span'); meta.className = 'sec-meta';
     meta.textContent = 'c. ' + (sec.start + 1) + '–' + end + ' · ' + (end - sec.start) + ' comp.';
@@ -241,13 +234,8 @@ function renderChart() {
     loopB.innerHTML = ICON_LOOP + '<span>' + (st.loopSection === k ? 'A praticar' : 'Praticar') + '</span>';
     loopB.title = 'Repetir esta secção em loop'; loopB.setAttribute('aria-label', 'Praticar ' + sec.name + ' em loop');
     loopB.addEventListener('click', () => practiceSection(k));
+    loopB.setAttribute('aria-pressed', String(st.loopSection === k));
     acts.append(loopB);
-    if (k > 0) {
-      const mergeB = document.createElement('button'); mergeB.type = 'button'; mergeB.className = 'sbtn';
-      mergeB.innerHTML = ICON_MERGE + '<span>Juntar</span>'; mergeB.title = 'Juntar à secção anterior'; mergeB.setAttribute('aria-label', 'Juntar à secção anterior');
-      mergeB.addEventListener('click', () => { st.sections.splice(k, 1); if (st.loopSection >= k) clearLoop(); save(); renderChart(); });
-      acts.append(mergeB);
-    }
     head.append(mark, meta, acts); wrap.append(head);
 
     for (let r = sec.start; r < end; r += st.perRow) {
@@ -257,41 +245,8 @@ function renderChart() {
     }
     chart.append(wrap);
   });
-  renderSidebar();
-  renderTimeline();
   markPlaying(st.playingBar, false);
   if (st.playingBar >= 0) updateNow(st.playingBar, 0);
-}
-
-// ---------- Barra lateral ----------
-function renderSidebar() {
-  const list = $('sideSections');
-  list.innerHTML = '';
-  const cur = st.playingBar >= 0 ? secOf(st.playingBar) : -1;
-  st.sections.forEach((sec, k) => {
-    const end = secEnd(k);
-    const item = document.createElement('div'); item.className = 'side-item' + (k === cur ? ' cur' : ''); item.dataset.sec = String(k);
-    const go = document.createElement('button'); go.type = 'button'; go.className = 'side-go';
-    go.setAttribute('aria-label', 'Ir para ' + sec.name + ', compassos ' + (sec.start + 1) + ' a ' + end);
-    const top = document.createElement('span'); top.className = 'side-top';
-    const nm = document.createElement('span'); nm.className = 'side-name'; nm.textContent = sec.name;
-    const rg = document.createElement('span'); rg.className = 'side-range'; rg.textContent = 'c. ' + (sec.start + 1) + '–' + end;
-    top.append(nm, rg);
-    const strip = document.createElement('span'); strip.className = 'strip'; strip.setAttribute('aria-hidden', 'true');
-    for (let i = sec.start; i < end; i++) { const b = document.createElement('i'); const c = barColor(i); if (c) b.style.setProperty('--c', c); strip.append(b); }
-    go.append(top, strip);
-    if (st.loopSection === k) { const li = document.createElement('span'); li.className = 'side-loopinfo'; li.textContent = '⟲ Em loop'; go.append(li); }
-    go.addEventListener('click', () => {
-      document.querySelector('.section[data-sec="' + k + '"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      if (st.ready) goBar(sec.start);
-    });
-    const loop = document.createElement('button'); loop.type = 'button'; loop.className = 'side-loop' + (st.loopSection === k ? ' on' : '');
-    loop.innerHTML = ICON_LOOP; loop.title = st.loopSection === k ? 'Parar o loop' : 'Praticar em loop';
-    loop.setAttribute('aria-label', (st.loopSection === k ? 'Parar o loop de ' : 'Praticar em loop: ') + sec.name);
-    loop.setAttribute('aria-pressed', String(st.loopSection === k));
-    loop.addEventListener('click', () => practiceSection(k));
-    item.append(go, loop); list.append(item);
-  });
 }
 
 function barCell(i: number) {
@@ -302,7 +257,7 @@ function barCell(i: number) {
   const num = document.createElement('span'); num.className = 'num'; num.textContent = (mb.isRepeatStart ? '‖: ' : '') + (i + 1);
   const ch = document.createElement('div'); ch.className = 'ch'; ch.contentEditable = 'true'; ch.spellcheck = false;
   ch.textContent = barText(i); ch.setAttribute('aria-label', 'Tom do compasso ' + (i + 1));
-  ch.addEventListener('focus', () => selectBar(i));
+  ch.addEventListener('focus', () => { selectBar(i); if (st.ready && st.playingBar !== i) goBar(i, true); });
   ch.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); focusBar(i + 1); }
     if (e.key === 'Tab') { e.preventDefault(); focusBar(e.shiftKey ? i - 1 : i + 1); }
@@ -312,7 +267,6 @@ function barCell(i: number) {
     const v = ch.textContent?.trim() ?? '';
     if (v === st.detected[i] || v === '') delete ov()[i]; else ov()[i] = v;
     cell.classList.toggle('edited', ov()[i] != null); cell.classList.remove('file'); colorCell(cell, v); save();
-    refreshBarColor(i);
     $<HTMLButtonElement>('bbReset').disabled = ov()[i] == null;
   });
   cell.addEventListener('click', e => { if (e.target === cell) ch.focus(); });
@@ -320,16 +274,6 @@ function barCell(i: number) {
   cell.append(num, ch);
   if (mb.repeatCount > 0) { const rep = document.createElement('span'); rep.className = 'rep'; rep.textContent = ':‖ ×' + mb.repeatCount; cell.append(rep); }
   return cell;
-}
-/** Atualiza a cor de um compasso na barra lateral e na linha temporal (depois de uma edição). */
-function refreshBarColor(i: number) {
-  const c = barColor(i);
-  const k = secOf(i), sec = st.sections[k];
-  const targets = [
-    $('timeline').querySelector<HTMLElement>('i[data-bar="' + i + '"]'),
-    document.querySelectorAll<HTMLElement>('.side-item[data-sec="' + k + '"] .strip i')[i - sec.start],
-  ];
-  for (const t of targets) { if (!t) continue; if (c) t.style.setProperty('--c', c); else t.style.removeProperty('--c'); }
 }
 function focusBar(i: number) {
   const el = document.querySelector<HTMLElement>('.bar[data-bar="' + i + '"] .ch');
@@ -369,60 +313,50 @@ function markPlaying(i: number, scroll = true) {
   }
 }
 
-// ---------- Linha temporal ----------
-function renderTimeline() {
-  const tl = $('timeline');
-  tl.innerHTML = '';
-  const starts = new Set(st.sections.map(s => s.start));
-  const n = score().masterBars.length;
-  for (let i = 0; i < n; i++) {
-    const b = document.createElement('i'); b.dataset.bar = String(i);
-    const c = barColor(i); if (c) b.style.setProperty('--c', c);
-    if (i > 0 && starts.has(i)) b.classList.add('sec-start');
-    b.title = st.sections[secOf(i)].name + ' · compasso ' + (i + 1) + ' · ' + barText(i);
-    tl.append(b);
-  }
-  paintTimeline(st.playingBar);
-}
-function paintTimeline(cur: number) {
-  $('timeline').querySelectorAll<HTMLElement>('i').forEach((b, j) => {
-    b.classList.toggle('done', cur >= 0 && j < cur);
-    b.classList.toggle('cur', j === cur);
-  });
-}
-$('timeline').addEventListener('click', e => {
-  const b = (e.target as HTMLElement).closest<HTMLElement>('i[data-bar]');
-  if (!b) return;
-  const i = +b.dataset.bar!;
-  document.querySelector('.bar[data-bar="' + i + '"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  if (st.ready) goBar(i);
-});
-function updateNow(i: number, _frac: number) {
-  paintTimeline(i);
+// ---------- Progresso (barra neutra no leitor) ----------
+function updateNow(i: number, frac: number) {
+  const total = st.score ? st.score.masterBars.length : 1;
+  $('progressFill').style.width = (i < 0 ? 0 : ((i + frac) / total) * 100) + '%';
   if (i < 0) {
     $('nowTitle').textContent = st.sections[0] ? st.sections[0].name + ' · compasso 1' : 'Início';
     $('nowChip').textContent = '';
-    document.querySelectorAll('.side-item').forEach(s => s.classList.remove('cur'));
     return;
   }
-  const k = secOf(i), where = st.sections[k].name + ' · c. ' + (i + 1);
+  const k = secOf(i);
   $('nowTitle').textContent = st.sections[k].name + ' · compasso ' + (i + 1);
-  $('nowChip').textContent = where;
-  document.querySelectorAll<HTMLElement>('.side-item').forEach(s => s.classList.toggle('cur', s.dataset.sec === String(k)));
+  $('nowChip').textContent = st.sections[k].name + ' · c. ' + (i + 1);
 }
+$('progress').addEventListener('click', e => {
+  if (!st.ready || !st.score) return;
+  const r = $('progress').getBoundingClientRect();
+  const i = Math.floor(((e.clientX - r.left) / r.width) * st.score.masterBars.length);
+  goBar(i, true);
+});
 
-// ---------- Exportar ----------
-async function copy(text: string, ok: string) {
-  try { await navigator.clipboard.writeText(text); toast(ok); }
-  catch {
-    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.append(ta); ta.select();
-    try { document.execCommand('copy'); toast(ok); } catch { toast('Não foi possível copiar'); }
-    ta.remove();
-  }
-}
-const rows = () => exportRows(st.sections, score().masterBars.length, st.perRow, barText);
-$('copyXls').addEventListener('click', () => copy(toTsv(rows()), 'Copiado. Cola no Excel com Ctrl+V.'));
-$('copyTxt').addEventListener('click', () => copy(toText(rows()), 'Esquema copiado como texto.'));
+// ---------- Exportar para PDF ----------
+$('pdfBtn').addEventListener('click', async () => {
+  if (!st.score) return;
+  const s = score(), t = s.tracks[st.viewTrack];
+  const mb = s.masterBars[0];
+  const meta = [s.artist, trackLabel(t, st.viewTrack), Math.round(s.tempo) + ' bpm', mb ? mb.timeSignatureNumerator + '/' + mb.timeSignatureDenominator : '', s.masterBars.length + ' compassos']
+    .filter(Boolean).join(' · ');
+  const btn = $<HTMLButtonElement>('pdfBtn'); btn.disabled = true;
+  try {
+    await exportPdf({
+      title: $('songTitle').textContent || 'Música',
+      meta,
+      perRow: st.perRow,
+      colors: input('optColors').checked,
+      sections: st.sections.map((sec, k) => {
+        const end = secEnd(k), bars = [];
+        for (let i = sec.start; i < end; i++) bars.push({ n: i + 1, text: barText(i), pcs: pitchClassesOf(barText(i)) });
+        return { name: sec.name, range: 'c. ' + (sec.start + 1) + '–' + end, bars };
+      }),
+    });
+    toast('PDF do esquema descarregado.');
+  } catch { toast('Não foi possível criar o PDF.'); }
+  finally { btn.disabled = false; }
+});
 
 // ---------- Ajustes ----------
 function openSettings(v: boolean) {
@@ -483,6 +417,13 @@ function initApi() {
     let frac = 0; try { frac = beat.playbackStart / mb.calculateDuration(); } catch { /* compasso vazio */ }
     updateNow(i, frac);
   }));
+  // Clicar numa nota da tablatura leva o esquema para esse compasso.
+  a.beatMouseDown.on(beat => {
+    const i = beat.voice.bar.masterBar.index;
+    if (i === st.playingBar) return;
+    leaveLoopIfOutside(i);
+    st.playingBar = i; markPlaying(i); updateNow(i, 0);
+  });
   a.error.on(e => { $('status').textContent = 'Erro no leitor: ' + (e?.message ?? e); });
 }
 function setStatus(txt: string) {
@@ -523,13 +464,16 @@ function leaveLoopIfOutside(i: number) {
   const s = st.sections[st.loopSection];
   if (i < s.start || i >= secEnd(st.loopSection)) { clearLoop(); renderChart(); }
 }
-function goBar(i: number) {
+/** Leva o leitor, a tablatura e o esquema para o compasso i. `fromChart`: não mexe no scroll do esquema. */
+function goBar(i: number, fromChart = false) {
   if (!st.ready) return;
   i = Math.max(0, Math.min(score().masterBars.length - 1, i));
   leaveLoopIfOutside(i);
   delay.clear();
   api().tickPosition = barTick(i);
-  st.playingBar = i; markPlaying(i); updateNow(i, 0);
+  st.playingBar = i; markPlaying(i, !fromChart); updateNow(i, 0);
+  // A tablatura acompanha: mostra o compasso escolhido.
+  try { api().scrollToCursor(); } catch { /* ainda sem cursor */ }
 }
 function playFrom(i: number) {
   if (!st.ready) { toast('Os sons ainda estão a carregar.'); return; }

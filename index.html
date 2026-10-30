@@ -38,13 +38,6 @@
 </header>
 
 <div class="app">
-  <nav class="side" aria-label="Secções">
-    <div class="side-label">Secções</div>
-    <div class="side-list" id="sideSections"></div>
-    <div class="side-label">Cores das notas</div>
-    <div class="notekey" id="noteKey" aria-label="Cor de cada nota"></div>
-  </nav>
-
   <main class="content">
     <div id="err" hidden class="error"></div>
     <div class="viewswitch" role="tablist">
@@ -56,13 +49,13 @@
         <div class="panel-head">
           <h2>Esquema</h2>
           <div class="actions">
-            <button class="btn sm" id="copyXls" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copiar para Excel</button>
-            <button class="btn sm" id="copyTxt" type="button">Copiar texto</button>
+            <button class="btn sm" id="pdfBtn" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 12v6M9 15l3 3 3-3"/></svg>Exportar PDF</button>
           </div>
         </div>
+        <div class="notekey" id="noteKey" aria-label="Cor de cada nota"></div>
         <div class="chart" id="chart"></div>
         <div class="legend">
-          <span>Toca num compasso para o editar ou tocar dali.</span>
+          <span>Clica num compasso para lá ir (a tablatura acompanha) ou para o editar.</span>
           <span><i>✎</i> editado por ti</span>
           <span><em>●</em> acorde escrito no ficheiro</span>
           <span>Espaço = tocar/pausa · ← → = compasso</span>
@@ -89,7 +82,7 @@
 </div>
 
 <div class="dock" id="dock">
-  <div class="timeline" id="timeline" role="group" aria-label="Estrutura da música: escolhe um compasso"></div>
+  <div class="progress" id="progress" title="Clica para saltar para essa parte da música"><div class="progress-fill" id="progressFill"></div></div>
   <div class="dock-row">
     <div class="tp">
       <button class="ibtn" id="prevBtn" disabled aria-label="Compasso anterior"><svg class="i f" viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12L18 6v12z"/></svg></button>

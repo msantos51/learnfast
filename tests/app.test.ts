@@ -1,6 +1,7 @@
+import { jsPDF } from 'jspdf';
 import { describe, expect, it } from 'vitest';
 import { pitchClassesOf, tokenPc } from '../src/app/notes';
-import { exportRows, toText, toTsv } from '../src/app/export';
+import { buildPdf, pdfFileName, type PdfChart } from '../src/app/pdf';
 
 describe('tokenPc', () => {
   it('aceita letras e Dó Ré Mi, com e sem acentos', () => {
@@ -23,16 +24,35 @@ describe('pitchClassesOf', () => {
   });
 });
 
-describe('exportar', () => {
-  const sections = [{ name: 'INTRO', start: 0 }, { name: 'VERSO', start: 2 }];
-  const bars = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const rows = exportRows(sections, bars.length, 2, i => bars[i]);
+describe('PDF do esquema', () => {
+  const bars = (start: number, chords: string[]) =>
+    chords.map((text, j) => ({ n: start + j, text, pcs: pitchClassesOf(text) }));
+  const chart: PdfChart = {
+    title: 'Exemplo',
+    meta: 'Baixo · 100 bpm · 4/4',
+    perRow: 4,
+    colors: true,
+    sections: [
+      { name: 'INTRO', range: 'c. 1–4', bars: bars(1, ['A', 'B', 'A', 'B']) },
+      { name: 'REFRÃO', range: 'c. 5–8', bars: bars(5, ['A', 'B', 'G D', '–']) },
+    ],
+  };
 
-  it('agrupa por secção e por linhas', () => {
-    expect(rows).toEqual([['INTRO'], ['A', 'B'], [], ['VERSO'], ['C', 'D'], ['E', 'F'], []]);
+  it('cria um PDF com o esquema', () => {
+    const doc = buildPdf(jsPDF, chart);
+    expect(doc.getNumberOfPages()).toBe(1);
+    const out = doc.output();
+    expect(out.startsWith('%PDF')).toBe(true);
+    expect(out).toContain('INTRO');
   });
-  it('gera texto para o Excel e texto simples', () => {
-    expect(toTsv(rows).split('\n')[1]).toBe('A\tB');
-    expect(toText(rows).split('\n').slice(0, 2)).toEqual(['[INTRO]', '| A | B |']);
+
+  it('passa para a página seguinte quando a música é longa', () => {
+    const long: PdfChart = { ...chart, sections: Array.from({ length: 12 }, (_, k) => ({ name: 'S' + k, range: '', bars: bars(1, Array(16).fill('C')) })) };
+    expect(buildPdf(jsPDF, long).getNumberOfPages()).toBeGreaterThan(1);
+  });
+
+  it('dá um nome de ficheiro limpo', () => {
+    expect(pdfFileName('Refrão da Música!')).toBe('refrao-da-musica-esquema.pdf');
+    expect(pdfFileName('')).toBe('musica-esquema.pdf');
   });
 });

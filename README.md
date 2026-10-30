@@ -21,7 +21,7 @@ npm run dev        # servidor local em http://localhost:5173
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | Servidor de desenvolvimento |
-| `npm test` | Testes (deteção dos acordes, notas, exportação) |
+| `npm test` | Testes (deteção dos acordes, notas, PDF) |
 | `npm run typecheck` | Verifica os tipos TypeScript |
 | `npm run build` | Gera o site em `dist/` |
 | `npm run preview` | Serve o `dist/` localmente |
@@ -32,7 +32,7 @@ npm run dev        # servidor local em http://localhost:5173
 index.html                 Página principal (estrutura e ícones)
 licencas.html              Termos, privacidade e licenças
 src/
-  main.ts                  Interface: esquema, linha temporal, leitor, ajustes
+  main.ts                  Interface: esquema, tablatura sincronizada, leitor, ajustes
   fonts.ts                 Fontes alojadas no site (Fontsource)
   styles.css               Estilos (design "Estúdio": tema escuro, tokens de cor)
   analysis/
@@ -40,7 +40,7 @@ src/
     parse.ts               Leitura dos ficheiros, com recurso a Windows-1252 nos GP3–GP5
   app/
     notes.ts               Nome escrito → nota (A, F#m, Dó, Sib…) para as cores
-    export.ts              Exportar para Excel e texto
+    pdf.ts                 Exportar o esquema para PDF (jsPDF, carregado só quando se exporta)
     sync.ts                Atraso do cursor/esquema para compensar a latência do áudio
 tests/                     Testes (Vitest) e ficheiro .gp5 de exemplo
 scripts/
