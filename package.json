@@ -1,0 +1,27 @@
+{
+  "name": "mapa-de-compassos",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Aprender músicas a partir de ficheiros Guitar Pro: esquema por secções e compassos, com cores por nota e leitor para praticar.",
+  "scripts": {
+    "vendor": "node scripts/copy-alphatab.mjs",
+    "predev": "npm run vendor",
+    "prebuild": "npm run vendor",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@coderline/alphatab": "1.8.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "typescript": "5.8.3",
+    "vite": "7.3.7",
+    "vitest": "4.1.12"
+  }
+}
