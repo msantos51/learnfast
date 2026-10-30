@@ -45,7 +45,13 @@
   <div class="cols">
     <section class="chartcol">
       <div class="panel-head">
-        <h2>Esquema</h2>
+        <div class="head-left">
+          <h2>Esquema</h2>
+          <label class="track-pick" for="trackQuick">
+            <span class="sr">Instrumento</span>
+            <select id="trackQuick" title="Instrumento usado para detetar o tom"></select>
+          </label>
+        </div>
         <div class="actions">
           <button class="btn sm" id="copyXls" type="button"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copiar para Excel</button>
           <button class="btn sm" id="copyTxt" type="button">Copiar texto</button>
@@ -113,12 +119,9 @@
 <aside class="sheet" id="settings" hidden aria-label="Ajustes">
   <div class="sheet-head"><h2>Ajustes</h2><button class="ibtn" id="closeSettings" type="button" aria-label="Fechar">✕</button></div>
   <fieldset>
-    <legend>A minha pista</legend>
-    <select id="viewTrack" aria-label="Pista para ver e tocar"></select>
-    <span class="hint">É a pista mostrada na tablatura e a que fica em silêncio com “Tocar por cima”.</span>
-  </fieldset>
-  <fieldset id="anaTracks">
-    <legend>Detetar o tom a partir de</legend>
+    <legend>O meu instrumento</legend>
+    <select id="viewTrack" aria-label="O meu instrumento"></select>
+    <span class="hint">O tom de cada compasso é detetado só a partir deste instrumento. É também o que aparece na tablatura e o que fica em silêncio com “Tocar por cima”.</span>
   </fieldset>
   <fieldset>
     <legend>Esquema</legend>
