@@ -34,7 +34,7 @@ licencas.html              Termos, privacidade e licenças
 src/
   main.ts                  Interface: esquema, tablatura sincronizada, leitor, ajustes
   fonts.ts                 Fontes alojadas no site (Fontsource)
-  styles.css               Estilos (design "Estúdio": tema escuro, tokens de cor)
+  styles.css               Estilos (design "Estúdio": tema escuro e tema claro, tokens de cor)
   analysis/
     analyze.ts             Deteção do tom por compasso e secções (módulo puro, testado)
     parse.ts               Leitura dos ficheiros, com recurso a Windows-1252 nos GP3–GP5
@@ -42,6 +42,7 @@ src/
     notes.ts               Nome escrito → nota (A, F#m, Dó, Sib…) para as cores
     pdf.ts                 Exportar o esquema para PDF (jsPDF, carregado só quando se exporta)
     sync.ts                Atraso do cursor/esquema para compensar a latência do áudio
+    theme.ts               Tema claro/escuro (guardado no browser) e cores da tablatura
 tests/                     Testes (Vitest) e ficheiro .gp5 de exemplo
 scripts/
   copy-alphatab.mjs        Copia o alphaTab, a fonte e os sons para public/vendor
