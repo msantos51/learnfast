@@ -125,18 +125,14 @@ function loadBytes(bytes: Uint8Array, name: string, isSample: boolean) {
   renderInfo(name); renderTrackControls(); detect(); renderChart(); renderTab(); updateNow(-1, 0);
 }
 
-function chip(text: string, value?: number | string, cls?: string) {
-  const c = document.createElement('span'); c.className = 'chip' + (cls ? ' ' + cls : '');
-  if (value != null) { const b = document.createElement('b'); b.textContent = String(value); c.append(b, ' ' + text); } else c.textContent = text;
-  return c;
-}
 function renderInfo(name: string) {
   const s = score();
   $('songTitle').textContent = s.title || name.replace(/\.[^.]+$/, '');
-  const m = $('songMeta'); m.innerHTML = '';
-  if (s.artist) m.append(chip(s.artist));
-  m.append(chip('compassos', s.masterBars.length), chip('bpm', Math.round(s.tempo)), chip('secções', st.sections.length));
-  if (st.isSample) m.append(chip('Exemplo', undefined, 'sample'));
+  document.title = $('songTitle').textContent + ' · Mapa de Compassos';
+  const mb = s.masterBars[0];
+  const parts = [s.artist, s.masterBars.length + ' compassos', Math.round(s.tempo) + ' bpm', mb ? mb.timeSignatureNumerator + '/' + mb.timeSignatureDenominator : ''];
+  const m = $('songMeta'); m.textContent = parts.filter(Boolean).join(' · ');
+  if (st.isSample) { const b = document.createElement('span'); b.className = 'sample'; b.textContent = 'Exemplo'; m.append(b); }
 }
 
 const isPercussion = (t: Track) => t.staves.every(x => x.isPercussion);
@@ -193,6 +189,12 @@ function colorCell(cell: HTMLElement, text: string) {
   if (!pcs.length) return;
   cell.dataset.pc = String(pcs[0]); cell.style.setProperty('--nc', 'var(--n' + pcs[0] + ')');
   if (pcs.length === 2 && pcs[1] !== pcs[0]) { cell.classList.add('two'); cell.style.setProperty('--nc2', 'var(--n' + pcs[1] + ')'); }
+}
+/** Cor da nota (raiz) de um compasso, ou '' sem cor. */
+function barColor(i: number) {
+  if (!input('optColors').checked) return '';
+  const pc = pitchClassesOf(barText(i))[0];
+  return pc == null ? '' : 'var(--n' + pc + ')';
 }
 function renderNoteKey() {
   const o = opts(), key = $('noteKey');
@@ -255,8 +257,41 @@ function renderChart() {
     }
     chart.append(wrap);
   });
+  renderSidebar();
   renderTimeline();
   markPlaying(st.playingBar, false);
+  if (st.playingBar >= 0) updateNow(st.playingBar, 0);
+}
+
+// ---------- Barra lateral ----------
+function renderSidebar() {
+  const list = $('sideSections');
+  list.innerHTML = '';
+  const cur = st.playingBar >= 0 ? secOf(st.playingBar) : -1;
+  st.sections.forEach((sec, k) => {
+    const end = secEnd(k);
+    const item = document.createElement('div'); item.className = 'side-item' + (k === cur ? ' cur' : ''); item.dataset.sec = String(k);
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'side-go';
+    go.setAttribute('aria-label', 'Ir para ' + sec.name + ', compassos ' + (sec.start + 1) + ' a ' + end);
+    const top = document.createElement('span'); top.className = 'side-top';
+    const nm = document.createElement('span'); nm.className = 'side-name'; nm.textContent = sec.name;
+    const rg = document.createElement('span'); rg.className = 'side-range'; rg.textContent = 'c. ' + (sec.start + 1) + '–' + end;
+    top.append(nm, rg);
+    const strip = document.createElement('span'); strip.className = 'strip'; strip.setAttribute('aria-hidden', 'true');
+    for (let i = sec.start; i < end; i++) { const b = document.createElement('i'); const c = barColor(i); if (c) b.style.setProperty('--c', c); strip.append(b); }
+    go.append(top, strip);
+    if (st.loopSection === k) { const li = document.createElement('span'); li.className = 'side-loopinfo'; li.textContent = '⟲ Em loop'; go.append(li); }
+    go.addEventListener('click', () => {
+      document.querySelector('.section[data-sec="' + k + '"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      if (st.ready) goBar(sec.start);
+    });
+    const loop = document.createElement('button'); loop.type = 'button'; loop.className = 'side-loop' + (st.loopSection === k ? ' on' : '');
+    loop.innerHTML = ICON_LOOP; loop.title = st.loopSection === k ? 'Parar o loop' : 'Praticar em loop';
+    loop.setAttribute('aria-label', (st.loopSection === k ? 'Parar o loop de ' : 'Praticar em loop: ') + sec.name);
+    loop.setAttribute('aria-pressed', String(st.loopSection === k));
+    loop.addEventListener('click', () => practiceSection(k));
+    item.append(go, loop); list.append(item);
+  });
 }
 
 function barCell(i: number) {
@@ -277,6 +312,7 @@ function barCell(i: number) {
     const v = ch.textContent?.trim() ?? '';
     if (v === st.detected[i] || v === '') delete ov()[i]; else ov()[i] = v;
     cell.classList.toggle('edited', ov()[i] != null); cell.classList.remove('file'); colorCell(cell, v); save();
+    refreshBarColor(i);
     $<HTMLButtonElement>('bbReset').disabled = ov()[i] == null;
   });
   cell.addEventListener('click', e => { if (e.target === cell) ch.focus(); });
@@ -284,6 +320,16 @@ function barCell(i: number) {
   cell.append(num, ch);
   if (mb.repeatCount > 0) { const rep = document.createElement('span'); rep.className = 'rep'; rep.textContent = ':‖ ×' + mb.repeatCount; cell.append(rep); }
   return cell;
+}
+/** Atualiza a cor de um compasso na barra lateral e na linha temporal (depois de uma edição). */
+function refreshBarColor(i: number) {
+  const c = barColor(i);
+  const k = secOf(i), sec = st.sections[k];
+  const targets = [
+    $('timeline').querySelector<HTMLElement>('i[data-bar="' + i + '"]'),
+    document.querySelectorAll<HTMLElement>('.side-item[data-sec="' + k + '"] .strip i')[i - sec.start],
+  ];
+  for (const t of targets) { if (!t) continue; if (c) t.style.setProperty('--c', c); else t.style.removeProperty('--c'); }
 }
 function focusBar(i: number) {
   const el = document.querySelector<HTMLElement>('.bar[data-bar="' + i + '"] .ch');
@@ -325,28 +371,44 @@ function markPlaying(i: number, scroll = true) {
 
 // ---------- Linha temporal ----------
 function renderTimeline() {
-  const tl = $('timeline'), needle = $('needle');
-  tl.querySelectorAll('.seg').forEach(s => s.remove());
-  const cur = st.playingBar >= 0 ? secOf(st.playingBar) : -1;
-  st.sections.forEach((sec, k) => {
-    const b = document.createElement('button'); b.type = 'button';
-    b.className = 'seg' + (k === cur ? ' cur' : '') + (k === st.loopSection ? ' loop' : '');
-    b.style.setProperty('--len', String(secEnd(k) - sec.start));
-    b.textContent = sec.name; b.title = sec.name + ' · c. ' + (sec.start + 1) + '–' + secEnd(k);
-    b.addEventListener('click', () => {
-      document.querySelector('.section[data-sec="' + k + '"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      if (st.ready) goBar(sec.start);
-    });
-    tl.insertBefore(b, needle);
+  const tl = $('timeline');
+  tl.innerHTML = '';
+  const starts = new Set(st.sections.map(s => s.start));
+  const n = score().masterBars.length;
+  for (let i = 0; i < n; i++) {
+    const b = document.createElement('i'); b.dataset.bar = String(i);
+    const c = barColor(i); if (c) b.style.setProperty('--c', c);
+    if (i > 0 && starts.has(i)) b.classList.add('sec-start');
+    b.title = st.sections[secOf(i)].name + ' · compasso ' + (i + 1) + ' · ' + barText(i);
+    tl.append(b);
+  }
+  paintTimeline(st.playingBar);
+}
+function paintTimeline(cur: number) {
+  $('timeline').querySelectorAll<HTMLElement>('i').forEach((b, j) => {
+    b.classList.toggle('done', cur >= 0 && j < cur);
+    b.classList.toggle('cur', j === cur);
   });
 }
-function updateNow(i: number, frac: number) {
-  const total = st.score ? st.score.masterBars.length : 1;
-  $('needle').style.left = (i < 0 ? 0 : ((i + frac) / total) * 100) + '%';
-  if (i < 0) { $('nowTitle').textContent = st.sections[0] ? st.sections[0].name + ' · compasso 1' : 'Início'; return; }
-  const k = secOf(i);
+$('timeline').addEventListener('click', e => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('i[data-bar]');
+  if (!b) return;
+  const i = +b.dataset.bar!;
+  document.querySelector('.bar[data-bar="' + i + '"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (st.ready) goBar(i);
+});
+function updateNow(i: number, _frac: number) {
+  paintTimeline(i);
+  if (i < 0) {
+    $('nowTitle').textContent = st.sections[0] ? st.sections[0].name + ' · compasso 1' : 'Início';
+    $('nowChip').textContent = '';
+    document.querySelectorAll('.side-item').forEach(s => s.classList.remove('cur'));
+    return;
+  }
+  const k = secOf(i), where = st.sections[k].name + ' · c. ' + (i + 1);
   $('nowTitle').textContent = st.sections[k].name + ' · compasso ' + (i + 1);
-  document.querySelectorAll('.seg').forEach((s, j) => s.classList.toggle('cur', j === k));
+  $('nowChip').textContent = where;
+  document.querySelectorAll<HTMLElement>('.side-item').forEach(s => s.classList.toggle('cur', s.dataset.sec === String(k)));
 }
 
 // ---------- Exportar ----------
@@ -383,7 +445,14 @@ select('trackQuick').addEventListener('change', () => setTrack(+select('trackQui
 function initApi() {
   const a = new at.AlphaTabApi($('tab'), {
     core: { fontDirectory: vendor + 'font/', scriptFile: vendor + 'alphaTab.min.js', engine: 'svg' },
-    display: { staveProfile: 'Tab', layoutMode: 'Page', scale: 0.95 },
+    display: {
+      staveProfile: 'Tab', layoutMode: 'Page', scale: 0.95,
+      // Cores da tablatura a condizer com o tema escuro
+      resources: {
+        staffLineColor: '#3a3f4d', barSeparatorColor: '#4a5060', barNumberColor: '#8a90a2',
+        mainGlyphColor: '#e9ebf2', secondaryGlyphColor: '#8a90a2', scoreInfoColor: '#e9ebf2',
+      },
+    },
     player: {
       playerMode: 'EnabledSynthesizer', outputMode: 'WebAudioScriptProcessor', soundFont: vendor + 'soundfont/sonivox.sf3',
       scrollElement: $('tabScroll'), enableCursor: true, enableAnimatedBeatCursor: true, enableUserInteraction: true, scrollOffsetY: -40,

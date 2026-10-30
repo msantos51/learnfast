@@ -34,7 +34,7 @@ licencas.html              Termos, privacidade e licenças
 src/
   main.ts                  Interface: esquema, linha temporal, leitor, ajustes
   fonts.ts                 Fontes alojadas no site (Fontsource)
-  styles.css               Estilos (tokens de cor, modo claro e escuro)
+  styles.css               Estilos (design "Estúdio": tema escuro, tokens de cor)
   analysis/
     analyze.ts             Deteção do tom por compasso e secções (módulo puro, testado)
     parse.ts               Leitura dos ficheiros, com recurso a Windows-1252 nos GP3–GP5
@@ -67,7 +67,7 @@ sons Sonivox (Apache 2.0) vêm no pacote do alphaTab; o script copia também os 
 
 ### Fontes
 
-Unbounded, Manrope e JetBrains Mono (OFL) vêm do [Fontsource](https://fontsource.org) e são servidas pelo próprio
+Geist e Geist Mono (OFL) vêm do [Fontsource](https://fontsource.org) e são servidas pelo próprio
 site (`src/fonts.ts`). Não há pedidos a servidores de terceiros, o que evita enviar o IP de quem visita à Google.
 
 ## Termos, privacidade e licenças
