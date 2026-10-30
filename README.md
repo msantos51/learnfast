@@ -29,9 +29,11 @@ npm run dev        # servidor local em http://localhost:5173
 ## Estrutura
 
 ```
-index.html                 Página (estrutura e ícones)
+index.html                 Página principal (estrutura e ícones)
+licencas.html              Termos, privacidade e licenças
 src/
   main.ts                  Interface: esquema, linha temporal, leitor, ajustes
+  fonts.ts                 Fontes alojadas no site (Fontsource)
   styles.css               Estilos (tokens de cor, modo claro e escuro)
   analysis/
     analyze.ts             Deteção do tom por compasso e secções (módulo puro, testado)
@@ -57,7 +59,19 @@ maior, menor e power chord. Se o ficheiro tiver acordes escritos, usa esses.
 A leitura dos ficheiros, a tablatura e o som usam o [alphaTab](https://alphatab.net) (MPL-2.0). É servido como
 script clássico a partir de `public/vendor/alphatab` (criado pelo `npm run vendor`, que corre antes do `dev`
 e do `build`), porque os workers do leitor reabrem esse mesmo ficheiro. A fonte Bravura (OFL) e o banco de
-sons Sonivox vêm no pacote do alphaTab.
+sons Sonivox (Apache 2.0) vêm no pacote do alphaTab; o script copia também os textos das licenças.
+
+### Fontes
+
+Unbounded, Manrope e JetBrains Mono (OFL) vêm do [Fontsource](https://fontsource.org) e são servidas pelo próprio
+site (`src/fonts.ts`). Não há pedidos a servidores de terceiros, o que evita enviar o IP de quem visita à Google.
+
+## Termos, privacidade e licenças
+
+A página `licencas.html` (ligada no rodapé) tem os termos de utilização, a nota de privacidade e as licenças de
+todos os componentes de terceiros. Se acrescentares uma dependência que vá para o site, acrescenta-a lá.
+
+O código deste repositório é © 2026 Miguel Santos, todos os direitos reservados (ver `LICENSE`).
 
 ## Publicação
 

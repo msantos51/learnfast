@@ -1,3 +1,4 @@
+import './fonts';
 import './styles.css';
 import type * as AlphaTab from '@coderline/alphatab';
 import { analyzeBar, isBassTrack, label, sectionsFromScore, type LabelOptions, type Section } from './analysis/analyze';

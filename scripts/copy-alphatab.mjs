@@ -21,4 +21,6 @@ for (const f of files) {
   mkdirSync(dirname(join(out, f)), { recursive: true });
   cpSync(join(dist, f), join(out, f));
 }
+// Licença do próprio alphaTab (está na raiz do pacote, ao lado de dist/).
+cpSync(join(dist, '..', 'LICENSE'), join(out, 'LICENSE'));
 console.log(`alphaTab copiado para ${out}`);
