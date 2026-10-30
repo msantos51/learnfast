@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="color-scheme" content="dark">
+<script>
+  // Aplica o tema guardado antes de desenhar a página (evita piscar)
+  try { if (localStorage.getItem('mapa:theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch (e) {}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Termos, privacidade e licenças · Mapa de Compassos</title>
 <meta name="description" content="Termos de utilização, privacidade e licenças do software usado pelo Mapa de Compassos.">

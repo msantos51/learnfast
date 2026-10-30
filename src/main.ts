@@ -6,6 +6,7 @@ import { parseScore } from './analysis/parse';
 import { pitchClassesOf } from './app/notes';
 import { exportPdf } from './app/pdf';
 import { VisualDelay } from './app/sync';
+import { TAB_COLORS, applyTheme, currentTheme, type Theme } from './app/theme';
 
 type Score = AlphaTab.model.Score;
 type Track = AlphaTab.model.Track;
@@ -358,6 +359,22 @@ $('pdfBtn').addEventListener('click', async () => {
   finally { btn.disabled = false; }
 });
 
+// ---------- Tema claro / escuro ----------
+function setTheme(theme: Theme) {
+  applyTheme(theme);
+  const next = theme === 'light' ? 'escuro' : 'claro';
+  $('themeBtn').setAttribute('aria-label', 'Mudar para o tema ' + next);
+  if (st.api) {
+    // A tablatura é desenhada em SVG com cores próprias: trocar e voltar a desenhar.
+    const res = st.api.settings.display.resources as unknown as Record<string, unknown>;
+    for (const [k, v] of Object.entries(TAB_COLORS[theme])) res[k] = at.model.Color.fromJson(v);
+    st.api.updateSettings();
+    st.api.render();
+  }
+}
+$('themeBtn').addEventListener('click', () => setTheme(currentTheme() === 'light' ? 'dark' : 'light'));
+$('themeBtn').setAttribute('aria-label', 'Mudar para o tema ' + (currentTheme() === 'light' ? 'escuro' : 'claro'));
+
 // ---------- Ajustes ----------
 function openSettings(v: boolean) {
   $('settings').hidden = !v; $('scrim').hidden = !v; $('settingsBtn').setAttribute('aria-expanded', String(v));
@@ -381,11 +398,8 @@ function initApi() {
     core: { fontDirectory: vendor + 'font/', scriptFile: vendor + 'alphaTab.min.js', engine: 'svg' },
     display: {
       staveProfile: 'Tab', layoutMode: 'Page', scale: 0.95,
-      // Cores da tablatura a condizer com o tema escuro
-      resources: {
-        staffLineColor: '#3a3f4d', barSeparatorColor: '#4a5060', barNumberColor: '#8a90a2',
-        mainGlyphColor: '#e9ebf2', secondaryGlyphColor: '#8a90a2', scoreInfoColor: '#e9ebf2',
-      },
+      // Cores da tablatura a condizer com o tema
+      resources: TAB_COLORS[currentTheme()],
     },
     player: {
       playerMode: 'EnabledSynthesizer', outputMode: 'WebAudioScriptProcessor', soundFont: vendor + 'soundfont/sonivox.sf3',
