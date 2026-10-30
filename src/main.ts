@@ -27,11 +27,11 @@ interface State {
   fileKey: string;
   isSample: boolean;
   sections: Section[];
-  overrides: Record<number, string>;
+  /** Correções do utilizador, por instrumento (índice da pista) e por compasso. */
+  overridesByTrack: Record<number, Record<number, string>>;
   detected: string[];
   fileFlag: boolean[];
   perRow: number;
-  anaTracks: number[];
   viewTrack: number;
   loopSection: number;
   selBar: number;
@@ -43,12 +43,14 @@ interface State {
 
 const st: State = {
   score: null, fileKey: '', isSample: true,
-  sections: [], overrides: {}, detected: [], fileFlag: [],
-  perRow: 4, anaTracks: [], viewTrack: 0,
+  sections: [], overridesByTrack: {}, detected: [], fileFlag: [],
+  perRow: 4, viewTrack: 0,
   loopSection: -1, selBar: -1, playingBar: -1, api: null, ready: false, syncMs: 0,
 };
 const score = () => st.score as Score;
 const api = () => st.api as AlphaTab.AlphaTabApi;
+/** Correções do instrumento selecionado. */
+const ov = () => (st.overridesByTrack[st.viewTrack] ??= {});
 
 // ---------- Utilidades ----------
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -66,8 +68,17 @@ const storage = {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* sem armazenamento */ }
   },
 };
-interface SavedSong { sections: Section[]; overrides: Record<number, string>; perRow: number }
-const save = () => storage.set('mapa:' + st.fileKey, { sections: st.sections, overrides: st.overrides, perRow: st.perRow } satisfies SavedSong);
+interface SavedSong {
+  sections: Section[];
+  overridesByTrack?: Record<number, Record<number, string>>;
+  /** Formato antigo: correções sem instrumento. */
+  overrides?: Record<number, string>;
+  perRow: number;
+  track?: number;
+}
+const save = () => storage.set('mapa:' + st.fileKey, {
+  sections: st.sections, overridesByTrack: st.overridesByTrack, perRow: st.perRow, track: st.viewTrack,
+} satisfies SavedSong);
 
 function opts(): LabelOptions & { splitBars: boolean; useFileChords: boolean } {
   return {
@@ -100,15 +111,15 @@ function loadBytes(bytes: Uint8Array, name: string, isSample: boolean) {
   showErr('');
   st.score = s; st.isSample = isSample;
   st.fileKey = (s.title || name) + '|' + (s.artist || '') + '|' + s.masterBars.length;
-  const pitched = s.tracks.map((_, i) => i).filter(i => !s.tracks[i].staves.every(x => x.isPercussion));
-  st.anaTracks = pitched.slice();
+  const pitched = s.tracks.map((_, i) => i).filter(i => !isPercussion(s.tracks[i]));
   const bassIdx = pitched.find(i => isBassTrack(s.tracks[i]));
-  st.viewTrack = bassIdx ?? pitched[0] ?? 0;
   st.loopSection = -1; st.selBar = -1; st.playingBar = -1;
 
   const saved = storage.get<SavedSong>('mapa:' + st.fileKey);
+  // Instrumento: o último escolhido para esta música; senão o baixo; senão o primeiro com notas.
+  st.viewTrack = saved?.track != null && s.tracks[saved.track] ? saved.track : bassIdx ?? pitched[0] ?? 0;
   st.sections = saved?.sections?.length ? saved.sections : sectionsFromScore(s);
-  st.overrides = saved?.overrides ?? {};
+  st.overridesByTrack = saved?.overridesByTrack ?? (saved?.overrides ? { [st.viewTrack]: saved.overrides } : {});
   if (saved?.perRow) { st.perRow = saved.perRow; select('perRow').value = String(saved.perRow); }
 
   renderInfo(name); renderTrackControls(); detect(); renderChart(); renderTab(); updateNow(-1, 0);
@@ -128,26 +139,33 @@ function renderInfo(name: string) {
   if (st.isSample) m.append(chip('Exemplo', undefined, 'sample'));
 }
 
-const trackLabel = (t: Track, i: number) => (t.name || 'Pista ' + (i + 1)) + (isBassTrack(t) ? ' · baixo' : '');
+const isPercussion = (t: Track) => t.staves.every(x => x.isPercussion);
+function trackLabel(t: Track, i: number) {
+  const name = t.name || 'Pista ' + (i + 1);
+  const kind = isPercussion(t) ? 'bateria' : isBassTrack(t) ? 'baixo' : '';
+  // Só acrescenta o tipo quando o nome ainda não o diz ("Baixo" fica "Baixo", não "Baixo · baixo").
+  return kind && !/bass|baixo|bajo|drum|bateria|perc/i.test(name) ? name + ' · ' + kind : name;
+}
 
+/** Preenche os dois seletores de instrumento (ajustes e cabeçalho do esquema). */
 function renderTrackControls() {
-  const s = score(), sel = select('viewTrack'), fs = $('anaTracks');
-  sel.innerHTML = '';
-  s.tracks.forEach((t, i) => {
-    const o = document.createElement('option'); o.value = String(i); o.textContent = trackLabel(t, i);
-    o.selected = i === st.viewTrack; sel.append(o);
-  });
-  fs.querySelectorAll('label').forEach(l => l.remove());
-  s.tracks.forEach((t, i) => {
-    if (t.staves.every(x => x.isPercussion)) return;
-    const l = document.createElement('label'); l.htmlFor = 'ana' + i;
-    const c = document.createElement('input'); c.type = 'checkbox'; c.id = 'ana' + i; c.checked = st.anaTracks.includes(i);
-    c.addEventListener('change', () => {
-      st.anaTracks = [...fs.querySelectorAll<HTMLInputElement>('input:checked')].map(x => +x.id.slice(3));
-      detect(); renderChart();
+  const s = score();
+  for (const sel of [select('viewTrack'), select('trackQuick')]) {
+    sel.innerHTML = '';
+    s.tracks.forEach((t, i) => {
+      const o = document.createElement('option'); o.value = String(i); o.textContent = trackLabel(t, i);
+      o.selected = i === st.viewTrack; sel.append(o);
     });
-    l.append(trackLabel(t, i), c); fs.append(l);
-  });
+  }
+}
+
+/** Muda o instrumento: volta a detetar o tom só com ele, e atualiza a tablatura. */
+function setTrack(i: number) {
+  if (i === st.viewTrack) return;
+  st.viewTrack = i;
+  select('viewTrack').value = String(i); select('trackQuick').value = String(i);
+  save(); detect(); renderChart(); renderTab();
+  toast('Tom detetado a partir de: ' + trackLabel(score().tracks[i], i));
 }
 
 // ---------- Deteção ----------
@@ -155,14 +173,15 @@ function detect() {
   const s = score(), o = opts();
   st.detected = []; st.fileFlag = [];
   for (let i = 0; i < s.masterBars.length; i++) {
-    const res = st.anaTracks.length ? analyzeBar(s, i, st.anaTracks, o) : [];
-    const kt = s.tracks[st.anaTracks[0] ?? 0];
+    // O tom é sempre detetado só a partir do instrumento selecionado.
+    const res = analyzeBar(s, i, [st.viewTrack], o);
+    const kt = s.tracks[st.viewTrack];
     const ks = (kt?.staves[0].bars[i]?.keySignature as number | undefined) ?? 0;
     st.detected[i] = res.length ? res.map(c => label(c, o, ks)).join(' ') : '–';
     st.fileFlag[i] = !!res[0]?.fromFile;
   }
 }
-const barText = (i: number) => st.overrides[i] ?? st.detected[i];
+const barText = (i: number) => ov()[i] ?? st.detected[i];
 const secEnd = (k: number) => (k + 1 < st.sections.length ? st.sections[k + 1].start : score().masterBars.length);
 function secOf(i: number) { let k = 0; st.sections.forEach((s, j) => { if (s.start <= i) k = j; }); return k; }
 
@@ -199,6 +218,12 @@ function renderChart() {
   chart.innerHTML = '';
   chart.classList.toggle('colored', input('optColors').checked);
   renderNoteKey();
+  const t = score().tracks[st.viewTrack];
+  if (isPercussion(t)) {
+    const note = document.createElement('p'); note.className = 'chart-empty';
+    note.textContent = 'A bateria não tem notas com altura, por isso não há tom para detetar. Escolhe outro instrumento no menu ao lado de “Esquema”.';
+    chart.append(note);
+  }
   st.sections.forEach((sec, k) => {
     const end = secEnd(k);
     const wrap = document.createElement('div'); wrap.className = 'section' + (st.loopSection === k ? ' looping' : ''); wrap.dataset.sec = String(k);
@@ -237,8 +262,8 @@ function renderChart() {
 function barCell(i: number) {
   const mb = score().masterBars[i];
   const cell = document.createElement('div'); cell.className = 'bar'; cell.dataset.bar = String(i);
-  if (st.overrides[i] != null) cell.classList.add('edited');
-  if (st.fileFlag[i] && st.overrides[i] == null) cell.classList.add('file');
+  if (ov()[i] != null) cell.classList.add('edited');
+  if (st.fileFlag[i] && ov()[i] == null) cell.classList.add('file');
   const num = document.createElement('span'); num.className = 'num'; num.textContent = (mb.isRepeatStart ? '‖: ' : '') + (i + 1);
   const ch = document.createElement('div'); ch.className = 'ch'; ch.contentEditable = 'true'; ch.spellcheck = false;
   ch.textContent = barText(i); ch.setAttribute('aria-label', 'Tom do compasso ' + (i + 1));
@@ -250,9 +275,9 @@ function barCell(i: number) {
   });
   ch.addEventListener('input', () => {
     const v = ch.textContent?.trim() ?? '';
-    if (v === st.detected[i] || v === '') delete st.overrides[i]; else st.overrides[i] = v;
-    cell.classList.toggle('edited', st.overrides[i] != null); cell.classList.remove('file'); colorCell(cell, v); save();
-    $<HTMLButtonElement>('bbReset').disabled = st.overrides[i] == null;
+    if (v === st.detected[i] || v === '') delete ov()[i]; else ov()[i] = v;
+    cell.classList.toggle('edited', ov()[i] != null); cell.classList.remove('file'); colorCell(cell, v); save();
+    $<HTMLButtonElement>('bbReset').disabled = ov()[i] == null;
   });
   cell.addEventListener('click', e => { if (e.target === cell) ch.focus(); });
   colorCell(cell, barText(i));
@@ -268,13 +293,13 @@ function selectBar(i: number) {
   st.selBar = i;
   $('bbLabel').textContent = 'Compasso ' + (i + 1);
   $<HTMLButtonElement>('bbSplit').disabled = st.sections.some(s => s.start === i);
-  $<HTMLButtonElement>('bbReset').disabled = st.overrides[i] == null;
+  $<HTMLButtonElement>('bbReset').disabled = ov()[i] == null;
   $('barbar').hidden = false;
 }
 
 $('bbClose').addEventListener('click', () => { $('barbar').hidden = true; (document.activeElement as HTMLElement | null)?.blur(); });
 $('bbPlay').addEventListener('click', () => { if (st.selBar >= 0) playFrom(st.selBar); });
-$('bbReset').addEventListener('click', () => { const i = st.selBar; delete st.overrides[i]; save(); renderChart(); focusBar(i); });
+$('bbReset').addEventListener('click', () => { const i = st.selBar; delete ov()[i]; save(); renderChart(); focusBar(i); });
 $('bbSplit').addEventListener('click', () => {
   const i = st.selBar; if (st.sections.some(s => s.start === i)) return;
   st.sections.push({ name: 'NOVA', start: i }); st.sections.sort((a, b) => a.start - b.start);
@@ -349,9 +374,10 @@ input('optColors').addEventListener('change', renderChart);
 ['optMinor', 'optSplit', 'optFileChords', 'optNames', 'optAcc'].forEach(id => $(id).addEventListener('change', () => { detect(); renderChart(); }));
 select('perRow').addEventListener('change', () => { st.perRow = +select('perRow').value; save(); renderChart(); });
 $('resetBtn').addEventListener('click', () => {
-  st.overrides = {}; st.sections = sectionsFromScore(score()); clearLoop(); save(); renderChart(); toast('Esquema reposto a partir do ficheiro.');
+  st.overridesByTrack[st.viewTrack] = {}; st.sections = sectionsFromScore(score()); clearLoop(); save(); renderChart(); toast('Esquema reposto a partir do ficheiro.');
 });
-select('viewTrack').addEventListener('change', () => { st.viewTrack = +select('viewTrack').value; renderTab(); });
+select('viewTrack').addEventListener('change', () => setTrack(+select('viewTrack').value));
+select('trackQuick').addEventListener('change', () => setTrack(+select('trackQuick').value));
 
 // ---------- Leitor (alphaTab) ----------
 function initApi() {

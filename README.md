@@ -50,9 +50,13 @@ scripts/
 
 ### Como funciona a deteção
 
-Para cada compasso soma a duração de cada nota (das pistas escolhidas) por classe de nota, dá mais peso à
-nota mais grave de cada tempo, à pista de baixo e ao início do compasso, e compara com modelos de acorde
-maior, menor e power chord. Se o ficheiro tiver acordes escritos, usa esses.
+O tom é detetado **só a partir do instrumento selecionado** (menu ao lado de "Esquema" ou em Ajustes). Por
+defeito é o baixo, se a música tiver um; a escolha fica guardada por música, e as correções feitas à mão
+ficam guardadas por instrumento.
+
+Para cada compasso soma a duração de cada nota desse instrumento por classe de nota, dá mais peso à nota
+mais grave de cada tempo e ao início do compasso, e compara com modelos de acorde maior, menor e power chord.
+Se o ficheiro tiver acordes escritos nesse instrumento, usa esses.
 
 ### alphaTab
 
