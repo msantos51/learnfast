@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Compassos">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0e0f13">
 <script>
@@ -111,7 +118,10 @@
       <span class="now-title" id="nowTitle">Início</span>
       <span id="status">A carregar os sons…</span>
     </div>
-    <div class="tools">
+    <button class="ibtn more" id="moreBtn" type="button" aria-expanded="false" aria-controls="dockTools" aria-label="Mais opções do leitor">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+    <div class="tools" id="dockTools">
       <label class="speed" for="speed" title="Velocidade">
         <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 14l4-5"/></svg>
         <input type="range" id="speed" min="25" max="150" step="5" value="100" aria-label="Velocidade"><output id="speedOut">100%</output>
@@ -128,6 +138,7 @@
   <b id="bbLabel">Compasso 1</b>
   <button id="bbPlay" type="button">Tocar daqui</button>
   <button id="bbExpand" type="button">Expandir</button>
+  <button id="bbEdit" type="button">Editar</button>
   <button id="bbSplit" type="button">Nova secção aqui</button>
   <button id="bbReset" type="button">Repor</button>
   <button id="bbClose" type="button" aria-label="Fechar">✕</button>
