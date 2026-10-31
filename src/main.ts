@@ -114,7 +114,11 @@ $('syncPlus').addEventListener('click', () => setSync(st.syncMs + 10));
 function loadBytes(bytes: Uint8Array, name: string, isSample: boolean) {
   let s: Score;
   try { s = parseScore(at, bytes); }
-  catch { showErr('Não consegui ler “' + name + '”. Confirma que é um ficheiro Guitar Pro (.gp, .gp3, .gp4, .gp5, .gpx) ou MusicXML.'); return; }
+  catch (e) {
+    showErr('Não consegui ler “' + name + '”: o ficheiro está danificado ou num formato que não é suportado. Aceita ficheiros Guitar Pro 3 a 8 (.gp3, .gp4, .gp5, .gpx, .gp) e MusicXML. Se o ficheiro abre no Guitar Pro, experimenta guardá-lo como .gp5.');
+    console.error(e);
+    return;
+  }
   showErr('');
   st.score = s; st.isSample = isSample;
   st.fileKey = (s.title || name) + '|' + (s.artist || '') + '|' + s.masterBars.length;
