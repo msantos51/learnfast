@@ -21,7 +21,7 @@ npm run dev        # servidor local em http://localhost:5173
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | Servidor de desenvolvimento |
-| `npm test` | Testes (deteção dos acordes, notas, PDF) |
+| `npm test` | Testes (deteção dos acordes, notas, contagem, PDF) |
 | `npm run typecheck` | Verifica os tipos TypeScript |
 | `npm run build` | Gera o site em `dist/` |
 | `npm run preview` | Serve o `dist/` localmente |
@@ -38,8 +38,10 @@ src/
   analysis/
     analyze.ts             Deteção do tom por compasso e secções (módulo puro, testado)
     parse.ts               Leitura dos ficheiros, com recurso a Windows-1252 nos GP3–GP5
+    bar.ts                 Notas de um compasso (corda, casa, início) para a vista em grande
   app/
     notes.ts               Nome escrito → nota (A, F#m, Dó, Sib…) para as cores
+    count.ts               Contagem do compasso (1 & 2 &, 1 e & a) e escolha automática da subdivisão
     pdf.ts                 Exportar o esquema para PDF (jsPDF, carregado só quando se exporta)
     sync.ts                Atraso do cursor/esquema para compensar a latência do áudio
     theme.ts               Tema claro/escuro (guardado no browser) e cores da tablatura

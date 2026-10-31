@@ -5,6 +5,8 @@ import { analyzeBar, isBassTrack, label, sectionsFromScore, type LabelOptions, t
 import { parseScore } from './analysis/parse';
 import { pitchClassesOf } from './app/notes';
 import { exportPdf } from './app/pdf';
+import { barView, type BarView } from './analysis/bar';
+import { autoSub, beatInfo, countLabels, slotOf, type Sub } from './app/count';
 import { VisualDelay } from './app/sync';
 import { TAB_COLORS, applyTheme, currentTheme, type Theme } from './app/theme';
 
@@ -35,6 +37,10 @@ interface State {
   perRow: number;
   viewTrack: number;
   loopSection: number;
+  /** Compasso em loop (ou -1). */
+  loopBar: number;
+  /** Compasso escolhido na tablatura (ou -1). */
+  tabSel: number;
   selBar: number;
   playingBar: number;
   api: AlphaTab.AlphaTabApi | null;
@@ -46,7 +52,7 @@ const st: State = {
   score: null, fileKey: '', isSample: true,
   sections: [], overridesByTrack: {}, detected: [], fileFlag: [],
   perRow: 4, viewTrack: 0,
-  loopSection: -1, selBar: -1, playingBar: -1, api: null, ready: false, syncMs: 0,
+  loopSection: -1, loopBar: -1, tabSel: -1, selBar: -1, playingBar: -1, api: null, ready: false, syncMs: 0,
 };
 const score = () => st.score as Score;
 const api = () => st.api as AlphaTab.AlphaTabApi;
@@ -114,7 +120,8 @@ function loadBytes(bytes: Uint8Array, name: string, isSample: boolean) {
   st.fileKey = (s.title || name) + '|' + (s.artist || '') + '|' + s.masterBars.length;
   const pitched = s.tracks.map((_, i) => i).filter(i => !isPercussion(s.tracks[i]));
   const bassIdx = pitched.find(i => isBassTrack(s.tracks[i]));
-  st.loopSection = -1; st.selBar = -1; st.playingBar = -1;
+  st.loopSection = -1; st.loopBar = -1; st.tabSel = -1; st.selBar = -1; st.playingBar = -1;
+  $('tabSel').hidden = true; closeBarModal();
 
   const saved = storage.get<SavedSong>('mapa:' + st.fileKey);
   // Instrumento: o último escolhido para esta música; senão o baixo; senão o primeiro com notas.
@@ -286,7 +293,9 @@ function selectBar(i: number) {
   $<HTMLButtonElement>('bbSplit').disabled = st.sections.some(s => s.start === i);
   $<HTMLButtonElement>('bbReset').disabled = ov()[i] == null;
   $('barbar').hidden = false;
+  showTabSel(i);
 }
+$('bbExpand').addEventListener('click', () => { if (st.selBar >= 0) { $('barbar').hidden = true; openBarModal(st.selBar); } });
 
 $('bbClose').addEventListener('click', () => { $('barbar').hidden = true; (document.activeElement as HTMLElement | null)?.blur(); });
 $('bbPlay').addEventListener('click', () => { if (st.selBar >= 0) playFrom(st.selBar); });
@@ -392,6 +401,201 @@ $('resetBtn').addEventListener('click', () => {
 select('viewTrack').addEventListener('change', () => setTrack(+select('viewTrack').value));
 select('trackQuick').addEventListener('change', () => setTrack(+select('trackQuick').value));
 
+// ---------- Compasso escolhido na tablatura ----------
+/** Mostra o contorno e a barra (Expandir / Loop) por cima do compasso i na tablatura. */
+function showTabSel(i: number) {
+  st.tabSel = i;
+  placeTabSel();
+}
+function placeTabSel() {
+  const el = $('tabSel'), i = st.tabSel;
+  const b = i >= 0 ? st.api?.boundsLookup?.findMasterBarByIndex(i)?.visualBounds : null;
+  if (!b) { el.hidden = true; return; }
+  const tab = $('tab');
+  el.style.left = tab.offsetLeft + b.x - 3 + 'px';
+  el.style.top = tab.offsetTop + b.y - 3 + 'px';
+  el.style.width = b.w + 6 + 'px';
+  el.style.height = b.h + 6 + 'px';
+  $('tsLabel').textContent = 'Compasso ' + (i + 1) + ' · ' + barText(i);
+  $('tabSelBar').classList.toggle('below', b.y < 60);
+  const on = st.loopBar === i;
+  $('tsLoop').setAttribute('aria-pressed', String(on));
+  $('tsLoop').querySelector('span')!.textContent = on ? 'Parar loop' : 'Loop';
+  el.hidden = false;
+}
+$('tsExpand').addEventListener('click', () => { if (st.tabSel >= 0) openBarModal(st.tabSel); });
+$('tsLoop').addEventListener('click', () => { if (st.tabSel >= 0) practiceBar(st.tabSel); });
+$('tab').addEventListener('dblclick', () => { if (st.tabSel >= 0) openBarModal(st.tabSel); });
+
+// ---------- Compasso expandido ----------
+const modal = {
+  open: false,
+  bar: -1,
+  view: null as BarView | null,
+  sub: 'auto' as 'auto' | Sub,
+  usedSub: 2 as Sub,
+  beatTicks: 960,
+  slots: 8,
+  lastSlot: -1,
+  reps: 0,
+};
+const LINE_GAP = 44;
+
+function openBarModal(i: number) {
+  if (!st.score) return;
+  modal.open = true;
+  $('barModal').hidden = false; $('bmScrim').hidden = false;
+  $('tabSel').hidden = true;
+  setModalBar(i);
+  $<HTMLButtonElement>('bmPlay').focus();
+}
+function closeBarModal() {
+  if (!modal.open) return;
+  modal.open = false;
+  $('barModal').hidden = true; $('bmScrim').hidden = true;
+  // Ao fechar, o loop do compasso termina.
+  if (st.loopBar >= 0) {
+    st.api?.pause(); clearLoop();
+    if (st.ready) setStatus('Em pausa');
+  }
+  if (st.tabSel >= 0) placeTabSel();
+}
+function setModalBar(i: number) {
+  const s = score();
+  i = Math.max(0, Math.min(s.masterBars.length - 1, i));
+  const wasLooping = st.loopBar >= 0, wasPlaying = st.api?.playerState === PLAYING;
+  modal.bar = i; modal.reps = 0; modal.lastSlot = -1;
+  modal.view = barView(s, i, st.viewTrack);
+  const k = secOf(i);
+  $('bmTitle').innerHTML = '';
+  $('bmTitle').append('Compasso ' + (i + 1) + ' ');
+  const sp = document.createElement('span'); sp.textContent = '· ' + st.sections[k].name; $('bmTitle').append(sp);
+  const v = modal.view, t = s.tracks[st.viewTrack];
+  $('bmMeta').textContent = v.numerator + '/' + v.denominator + ' · ' + Math.round(s.tempo) + ' bpm · ' + trackLabel(t, st.viewTrack);
+  const chord = $('bmChord'); chord.textContent = barText(i);
+  const pc = pitchClassesOf(barText(i))[0];
+  if (pc != null && input('optColors').checked) chord.style.setProperty('--nc', 'var(--n' + pc + ')'); else chord.style.removeProperty('--nc');
+  $<HTMLButtonElement>('bmPrev').disabled = i === 0;
+  $<HTMLButtonElement>('bmNext').disabled = i === s.masterBars.length - 1;
+  $('bmPrevN').textContent = 'Compasso ' + i;
+  $('bmNextN').textContent = 'Compasso ' + (i + 2);
+  $('bmReps').textContent = '0';
+  renderBarModal();
+  st.tabSel = i; st.selBar = i;
+  goBar(i);
+  if (wasLooping) { setLoopBar(i); if (wasPlaying) api().play(); }
+  syncModalPlay();
+}
+
+function renderBarModal() {
+  const v = modal.view; if (!v) return;
+  const { beats, beatTicks } = beatInfo(v.numerator, v.denominator);
+  const sub: Sub = modal.sub === 'auto' ? autoSub(v.notes.map(n => n.start), beatTicks) : modal.sub;
+  modal.usedSub = sub; modal.beatTicks = beatTicks;
+  const labels = countLabels(beats, sub);
+  modal.slots = labels.length;
+  const x = (slot: number) => ((slot + 0.5) / labels.length) * 100 + '%';
+  const lines = Math.max(1, v.strings.length);
+  const staffH = (lines - 1) * LINE_GAP + 24;
+  const root = $('barModal');
+  root.style.setProperty('--slots', String(labels.length));
+  root.style.setProperty('--staff-h', staffH + 'px');
+  const lineY = (l: number) => 12 + l * LINE_GAP;
+
+  // Nomes das cordas
+  const names = $('bmStrings'); names.innerHTML = '';
+  v.strings.forEach((n, l) => { const e = document.createElement('span'); e.textContent = n; e.style.top = lineY(l) + 'px'; names.append(e); });
+
+  // Pauta: colunas da contagem, divisões dos tempos, linhas e notas
+  const staff = $('bmStaff'); staff.innerHTML = '';
+  labels.forEach((_, slot) => {
+    const c = document.createElement('span'); c.className = 'col'; c.dataset.slot = String(slot);
+    c.style.left = x(slot); c.style.width = 100 / labels.length - 0.8 + '%'; staff.append(c);
+  });
+  for (let b = 1; b < beats; b++) { const e = document.createElement('span'); e.className = 'bt'; e.style.left = (b / beats) * 100 + '%'; staff.append(e); }
+  for (let l = 0; l < lines; l++) { const e = document.createElement('span'); e.className = 'ln'; e.style.top = lineY(l) + 'px'; staff.append(e); }
+  const hit = new Set<number>();
+  for (const n of v.notes) {
+    const slot = slotOf(n.start, beatTicks, sub, labels.length); hit.add(slot);
+    const e = document.createElement('span'); e.className = 'nt' + (n.dead ? ' dead' : '');
+    e.dataset.beat = String(n.beatId); e.dataset.slot = String(slot);
+    e.textContent = n.dead ? 'x' : String(n.fret);
+    e.style.left = x(slot); e.style.top = lineY(n.line) + 'px';
+    staff.append(e);
+  }
+
+  // Contagem por baixo e pulsos do metrónomo por cima
+  const count = $('bmCount'); count.innerHTML = '';
+  const perBeat = labels.length / beats;
+  labels.forEach((t, slot) => {
+    const e = document.createElement('span'); e.textContent = t; e.dataset.slot = String(slot);
+    if (slot % perBeat === 0) e.classList.add('beat');
+    if (hit.has(slot)) e.classList.add('hit');
+    count.append(e);
+  });
+  // Um pulso por tempo, alinhado com o número do tempo na contagem
+  const pulses = $('bmPulses'); pulses.innerHTML = '';
+  labels.forEach((_, slot) => {
+    const e = document.createElement('i');
+    if (slot % perBeat === 0) e.dataset.beat = String(slot / perBeat); else e.style.visibility = 'hidden';
+    pulses.append(e);
+  });
+
+  // Subdivisão
+  $('bmSubs').querySelectorAll<HTMLButtonElement>('button').forEach(btn => btn.setAttribute('aria-pressed', String(btn.dataset.sub === String(modal.sub))));
+  const names2: Record<Sub, string> = { 1: 'só os tempos', 2: 'colcheias (1 & 2 &)', 4: 'semicolcheias (1 e & a)' };
+  $('bmSubHint').textContent = modal.sub === 'auto' ? 'A contar em ' + names2[sub] + ', pela nota mais curta do compasso.' : '';
+  modal.lastSlot = -1;
+}
+
+/** Acende a nota, a contagem e o pulso do tempo que está a tocar. */
+function highlightModal(beatStart: number, beatId: number) {
+  const slot = slotOf(beatStart, modal.beatTicks, modal.usedSub, modal.slots);
+  if (modal.lastSlot >= 0 && slot < modal.lastSlot) { modal.reps++; $('bmReps').textContent = String(modal.reps); }
+  modal.lastSlot = slot;
+  const beat = Math.floor(slot / modal.usedSub);
+  $('bmStaff').querySelectorAll<HTMLElement>('.nt').forEach(e => e.classList.toggle('on', e.dataset.beat === String(beatId)));
+  $('bmStaff').querySelectorAll<HTMLElement>('.col').forEach(e => e.classList.toggle('on', e.dataset.slot === String(slot)));
+  $('bmCount').querySelectorAll<HTMLElement>('span').forEach(e => e.classList.toggle('on', e.dataset.slot === String(slot)));
+  $('bmPulses').querySelectorAll<HTMLElement>('i').forEach(e => e.classList.toggle('on', e.dataset.beat === String(beat)));
+}
+function clearModalHighlight() {
+  $('barModal').querySelectorAll('.on').forEach(e => e.classList.remove('on'));
+  modal.lastSlot = -1;
+}
+
+function syncModalPlay() {
+  const playing = !!st.api && st.api.playerState === PLAYING && st.loopBar === modal.bar;
+  $('bmPlayIcon').innerHTML = playing ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+  $('bmPlayText').textContent = playing ? 'A tocar em loop' : 'Tocar em loop';
+}
+$('bmPlay').addEventListener('click', () => {
+  if (!st.ready) { toast('Os sons ainda estão a carregar.'); return; }
+  if (api().playerState === PLAYING && st.loopBar === modal.bar) { api().pause(); return; }
+  // Contagem e metrónomo conforme as opções da janela (e os botões do leitor acompanham)
+  api().countInVolume = input('bmCountIn').checked ? 1 : 0; setPressed('countBtn', input('bmCountIn').checked);
+  api().metronomeVolume = input('bmMetro').checked ? 1 : 0; setPressed('metroBtn', input('bmMetro').checked);
+  modal.reps = 0; $('bmReps').textContent = '0';
+  setLoopBar(modal.bar);
+  api().tickPosition = barTick(modal.bar);
+  api().play();
+});
+input('bmMetro').addEventListener('change', () => { if (st.api) { st.api.metronomeVolume = input('bmMetro').checked ? 1 : 0; setPressed('metroBtn', input('bmMetro').checked); } });
+input('bmCountIn').addEventListener('change', () => { if (st.api) { st.api.countInVolume = input('bmCountIn').checked ? 1 : 0; setPressed('countBtn', input('bmCountIn').checked); } });
+input('bmSpeed').addEventListener('input', () => {
+  input('speed').value = input('bmSpeed').value;
+  input('speed').dispatchEvent(new Event('input'));
+});
+$('bmSubs').addEventListener('click', e => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-sub]'); if (!b) return;
+  modal.sub = b.dataset.sub === 'auto' ? 'auto' : (+b.dataset.sub! as Sub);
+  renderBarModal();
+});
+$('bmPrev').addEventListener('click', () => setModalBar(modal.bar - 1));
+$('bmNext').addEventListener('click', () => setModalBar(modal.bar + 1));
+$('bmClose').addEventListener('click', closeBarModal);
+$('bmScrim').addEventListener('click', closeBarModal);
+
 // ---------- Leitor (alphaTab) ----------
 function initApi() {
   const a = new at.AlphaTabApi($('tab'), {
@@ -417,23 +621,27 @@ function initApi() {
     applyMute();
   });
   a.renderStarted.on(() => ($('tabLoading').hidden = false));
-  a.renderFinished.on(() => ($('tabLoading').hidden = true));
+  a.renderFinished.on(() => { $('tabLoading').hidden = true; if (st.tabSel >= 0 && !modal.open) placeTabSel(); });
   a.playerStateChanged.on(e => {
     const playing = e.state === PLAYING;
     if (!playing) delay.clear();
     $('playIcon').innerHTML = playing ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
     $('playBtn').setAttribute('aria-label', playing ? 'Pausa' : 'Tocar');
     setStatus(playing ? 'A tocar' : 'Em pausa');
+    syncModalPlay();
+    if (!playing && modal.open) clearModalHighlight();
   });
   a.playedBeatChanged.on(beat => delay.run(() => {
     const mb = beat.voice.bar.masterBar, i = mb.index;
     if (i !== st.playingBar) { st.playingBar = i; markPlaying(i); }
     let frac = 0; try { frac = beat.playbackStart / mb.calculateDuration(); } catch { /* compasso vazio */ }
     updateNow(i, frac);
+    if (modal.open && i === modal.bar) highlightModal(beat.playbackStart, beat.id);
   }));
   // Clicar numa nota da tablatura leva o esquema para esse compasso.
   a.beatMouseDown.on(beat => {
     const i = beat.voice.bar.masterBar.index;
+    showTabSel(i);
     if (i === st.playingBar) return;
     leaveLoopIfOutside(i);
     st.playingBar = i; markPlaying(i); updateNow(i, 0);
@@ -442,7 +650,8 @@ function initApi() {
 }
 function setStatus(txt: string) {
   const s = $('status'); s.textContent = txt;
-  if (st.loopSection >= 0) { const l = document.createElement('span'); l.className = 'loopinfo'; l.textContent = ' · loop em ' + st.sections[st.loopSection].name; s.append(l); }
+  const what = st.loopSection >= 0 ? st.sections[st.loopSection].name : st.loopBar >= 0 ? 'compasso ' + (st.loopBar + 1) : '';
+  if (what) { const l = document.createElement('span'); l.className = 'loopinfo'; l.textContent = ' · loop em ' + what; s.append(l); }
   s.append(' · ' + input('speed').value + '%');
 }
 
@@ -474,6 +683,7 @@ function barEndTick(i: number) {
   return barTick(i) + score().masterBars[i].calculateDuration();
 }
 function leaveLoopIfOutside(i: number) {
+  if (st.loopBar >= 0 && i !== st.loopBar && !modal.open) { clearLoop(); if (st.tabSel >= 0) placeTabSel(); }
   if (st.loopSection < 0) return;
   const s = st.sections[st.loopSection];
   if (i < s.start || i >= secEnd(st.loopSection)) { clearLoop(); renderChart(); }
@@ -497,7 +707,7 @@ function playFrom(i: number) {
 function practiceSection(k: number) {
   if (!st.ready) { toast('Os sons ainda estão a carregar.'); return; }
   if (st.loopSection === k) { clearLoop(); renderChart(); setStatus(api().playerState === PLAYING ? 'A tocar' : 'Em pausa'); return; }
-  st.loopSection = k;
+  st.loopSection = k; st.loopBar = -1;
   const s = st.sections[k], end = secEnd(k);
   api().playbackRange = { startTick: barTick(s.start), endTick: barEndTick(end - 1) } as AlphaTab.synth.PlaybackRange;
   api().isLooping = true; setPressed('loopBtn', true);
@@ -506,8 +716,26 @@ function practiceSection(k: number) {
   api().tickPosition = barTick(s.start);
   if (api().playerState !== PLAYING) api().play(); else setStatus('A tocar');
 }
+/** Loop de um só compasso (sem mudar a posição de reprodução). */
+function setLoopBar(i: number) {
+  if (st.loopSection >= 0) { st.loopSection = -1; renderChart(); }
+  st.loopBar = i;
+  api().playbackRange = { startTick: barTick(i), endTick: barEndTick(i) } as AlphaTab.synth.PlaybackRange;
+  api().isLooping = true; setPressed('loopBtn', true);
+  setStatus(api().playerState === PLAYING ? 'A tocar' : 'Em pausa');
+}
+/** Liga/desliga o loop do compasso i e começa a tocar. */
+function practiceBar(i: number) {
+  if (!st.ready) { toast('Os sons ainda estão a carregar.'); return; }
+  if (st.loopBar === i) { clearLoop(); placeTabSel(); setStatus(api().playerState === PLAYING ? 'A tocar' : 'Em pausa'); return; }
+  setLoopBar(i);
+  delay.clear();
+  api().tickPosition = barTick(i);
+  if (api().playerState !== PLAYING) api().play();
+  placeTabSel();
+}
 function clearLoop() {
-  st.loopSection = -1;
+  st.loopSection = -1; st.loopBar = -1;
   if (st.api && st.ready) { st.api.playbackRange = null; st.api.isLooping = false; }
   setPressed('loopBtn', false);
 }
@@ -523,12 +751,13 @@ $('prevBtn').addEventListener('click', () => goBar((st.playingBar < 0 ? 0 : st.p
 $('nextBtn').addEventListener('click', () => goBar((st.playingBar < 0 ? -1 : st.playingBar) + 1));
 input('speed').addEventListener('input', () => {
   const v = +input('speed').value; $('speedOut').textContent = v + '%';
+  input('bmSpeed').value = String(v); $('bmSpeedOut').textContent = v + '%';
   if (st.api) st.api.playbackSpeed = v / 100;
   if (st.ready) setStatus(api().playerState === PLAYING ? 'A tocar' : 'Em pausa');
 });
 $('loopBtn').addEventListener('click', () => {
   const v = toggle('loopBtn'); api().isLooping = v;
-  if (!v && st.loopSection >= 0) { clearLoop(); renderChart(); }
+  if (!v && (st.loopSection >= 0 || st.loopBar >= 0)) { clearLoop(); renderChart(); if (st.tabSel >= 0) placeTabSel(); }
 });
 $('metroBtn').addEventListener('click', () => { api().metronomeVolume = toggle('metroBtn') ? 1 : 0; });
 $('countBtn').addEventListener('click', () => { api().countInVolume = toggle('countBtn') ? 1 : 0; });
@@ -537,10 +766,17 @@ $('muteBtn').addEventListener('click', () => { toggle('muteBtn'); applyMute(); }
 // Atalhos de teclado
 addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('settings').hidden) { openSettings(false); return; }
+  if (e.key === 'Escape' && modal.open) { closeBarModal(); return; }
   const t = e.target as HTMLElement;
   if (t.isContentEditable || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
   if (!st.ready) return;
-  if (e.key === ' ') { e.preventDefault(); api().playPause(); }
+  if (e.key === ' ' && !modal.open) { e.preventDefault(); api().playPause(); }
+  if (modal.open) {
+    if (e.key === ' ') { e.preventDefault(); $('bmPlay').click(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); $('bmPrev').click(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); $('bmNext').click(); }
+    return;
+  }
   if (e.key === 'ArrowLeft') { e.preventDefault(); $('prevBtn').click(); }
   if (e.key === 'ArrowRight') { e.preventDefault(); $('nextBtn').click(); }
 });
