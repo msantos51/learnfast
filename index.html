@@ -76,7 +76,16 @@
             <span class="now-chip" id="nowChip"></span>
           </div>
           <div class="tabwrap">
-            <div id="tabScroll"><div id="tab"></div></div>
+            <div id="tabScroll">
+              <div id="tab"></div>
+              <div class="tab-sel" id="tabSel" hidden>
+                <div class="tab-sel-bar" id="tabSelBar">
+                  <span id="tsLabel">Compasso 1</span>
+                  <button type="button" id="tsExpand"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Expandir</button>
+                  <button type="button" id="tsLoop" class="accent" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg><span>Loop</span></button>
+                </div>
+              </div>
+            </div>
             <div class="tab-loading" id="tabLoading">A desenhar a tablatura…</div>
           </div>
         </div>
@@ -118,10 +127,56 @@
 <div class="barbar" id="barbar" hidden>
   <b id="bbLabel">Compasso 1</b>
   <button id="bbPlay" type="button">Tocar daqui</button>
+  <button id="bbExpand" type="button">Expandir</button>
   <button id="bbSplit" type="button">Nova secção aqui</button>
   <button id="bbReset" type="button">Repor</button>
   <button id="bbClose" type="button" aria-label="Fechar">✕</button>
 </div>
+
+<div class="scrim" id="bmScrim" hidden></div>
+<section class="bar-modal" id="barModal" role="dialog" aria-modal="true" aria-labelledby="bmTitle" hidden>
+  <header class="bm-head">
+    <div class="bm-id">
+      <span class="bm-chord" id="bmChord">C</span>
+      <div>
+        <h2 id="bmTitle">Compasso 1</h2>
+        <p id="bmMeta">4/4</p>
+      </div>
+    </div>
+    <div class="bm-nav">
+      <button class="btn" type="button" id="bmPrev">‹ <span id="bmPrevN"></span></button>
+      <button class="btn" type="button" id="bmNext"><span id="bmNextN"></span> ›</button>
+      <button class="ibtn" type="button" id="bmClose" aria-label="Fechar">✕</button>
+    </div>
+  </header>
+  <div class="bm-body">
+    <div class="bm-grid">
+      <div></div>
+      <div class="bm-pulses" id="bmPulses" aria-label="Tempos"></div>
+      <div class="bm-strings" id="bmStrings" aria-hidden="true"></div>
+      <div class="bm-staff" id="bmStaff" aria-label="Tablatura do compasso"></div>
+      <div></div>
+      <div class="bm-count" id="bmCount" aria-label="Como contar"></div>
+    </div>
+    <div class="bm-subrow">
+      <span class="bm-label">Contar em</span>
+      <div class="seg" role="group" aria-label="Subdivisão da contagem" id="bmSubs">
+        <button type="button" data-sub="auto">Automático</button>
+        <button type="button" data-sub="1">Tempos · 1 2 3</button>
+        <button type="button" data-sub="2">Colcheias · 1 &amp; 2 &amp;</button>
+        <button type="button" data-sub="4">Semicolcheias · 1 e &amp; a</button>
+      </div>
+      <span class="hint" id="bmSubHint"></span>
+    </div>
+  </div>
+  <footer class="bm-foot">
+    <button type="button" class="bm-play" id="bmPlay"><svg class="i f" viewBox="0 0 24 24" id="bmPlayIcon"><path d="M8 5v14l11-7z"/></svg><span id="bmPlayText">Tocar em loop</span></button>
+    <label class="bm-opt"><input type="checkbox" id="bmCountIn" checked> Contagem de 1 compasso</label>
+    <label class="bm-opt"><input type="checkbox" id="bmMetro" checked> Metrónomo</label>
+    <label class="bm-opt">Velocidade <input type="range" id="bmSpeed" min="25" max="150" step="5" value="100" aria-label="Velocidade"><output id="bmSpeedOut">100%</output></label>
+    <span class="bm-reps">Repetição <strong id="bmReps">0</strong></span>
+  </footer>
+</section>
 
 <div class="scrim" id="scrim" hidden></div>
 <aside class="sheet" id="settings" hidden aria-label="Ajustes">
