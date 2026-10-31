@@ -164,7 +164,7 @@ svg.f { fill: currentColor; stroke: none; }
 .tabpanel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px 6px; }
 .now-chip { font: 500 11px var(--f-mono); color: var(--accent-text); }
 .tabwrap { position: relative; }
-#tabScroll { max-height: calc(100vh - var(--dock-h, 120px) - 150px); overflow: auto; }
+#tabScroll { max-height: calc(100vh - var(--dock-h, 120px) - 150px); max-height: calc(100dvh - var(--dock-h, 120px) - 150px); overflow: auto; -webkit-overflow-scrolling: touch; }
 #tab { min-height: 320px; }
 .tab-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-soft); pointer-events: none; }
 .at-cursor-bar { background: color-mix(in srgb, var(--accent) 16%, transparent); }
@@ -256,16 +256,88 @@ svg.f { fill: currentColor; stroke: none; }
   .tbtn { width: 38px; padding: 0; justify-content: center; }
   .dock { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 }
-@media (max-width: 520px) {
-  .now { order: -1; flex-basis: 100%; }
-  .dock-row { gap: 8px; justify-content: space-between; }
-  .speed input { width: 64px; }
-  .speed svg { display: none; }
-  .bar { min-height: 40px; }
+.more { display: none; }
+
+/* ---------- Telemóvel ---------- */
+@media (max-width: 600px) {
+  .top { gap: 10px; padding-block: 10px; }
+  .top-left { flex-wrap: nowrap; gap: 10px; min-width: 0; }
+  .brand-name { display: none; }
+  .song { flex: 1; min-width: 0; }
+  #songTitle, #songMeta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-actions { width: 100%; flex-wrap: nowrap; }
+  .track-pick { flex: 1; min-width: 0; }
+  .track-pick select { max-width: none; width: 100%; text-overflow: ellipsis; }
+  .btn.primary span { display: none; }
+  .content { padding-top: 12px; }
+  .viewswitch { display: flex; width: 100%; margin-bottom: 12px; }
+  .viewswitch button { flex: 1; }
+  .panel-head { margin-bottom: 8px; }
+  .notekey { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px; }
+  .notekey::-webkit-scrollbar { display: none; }
+  .notekey span { flex: none; }
+  .chart { gap: 14px; }
+  .bar { min-height: 42px; }
   .bar .ch { font-size: 15px; }
   .sec-meta { display: none; }
   .sbtn span { display: none; }
+  .tabpanel { padding: 10px 6px 4px; border-radius: 12px; }
+  .tabpanel .panel-head { padding: 0 6px; }
+  .legend { display: none; }
+  /* Leitor compacto: uma linha; o resto abre no botão de opções */
+  .dock { padding-top: 8px; gap: 8px; }
+  .dock-row { flex-wrap: nowrap; gap: 4px; }
+  #stopBtn { display: none; }
+  .now { flex: 1 1 auto; min-width: 0; padding-left: 4px; }
+  .now-title { font-size: 13px; }
+  #status { font-size: 11.5px; }
+  .more { display: grid; }
+  .tools { display: none; position: absolute; left: 0; right: 0; bottom: 100%; gap: 8px; flex-wrap: wrap; justify-content: space-between;
+    padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); background: var(--dock); border-top: 1px solid var(--line); box-shadow: 0 -12px 24px rgba(0, 0, 0, .18); }
+  .dock.tools-open .tools { display: flex; }
+  .dock.tools-open .more { background: var(--panel-2); }
+  .speed { flex: 1 1 100%; }
+  .speed input { flex: 1; width: auto; }
+  .speed svg { display: block; }
+  .tbtn { flex: 1; width: auto; }
+  .barbar { left: 12px; right: 12px; transform: none; max-width: none; flex-wrap: wrap; justify-content: space-between; border-radius: 16px; padding: 8px; gap: 2px; overflow: visible; }
+  .barbar b { flex-basis: 100%; padding: 2px 8px 4px; }
+  .barbar button { flex: 1 1 auto; }
+  .dock.tools-open ~ .barbar { display: none; }
+  #songMeta .sample { display: none; }
+  .toast { max-width: calc(100% - 24px); text-align: center; }
+}
+
+/* Ecrãs táteis: alvos maiores, sem efeitos de hover */
+@media (pointer: coarse) {
+  .btn, .tbtn, .speed { min-height: 44px; }
+  .btn.icon { width: 44px; }
+  .ibtn { width: 44px; height: 44px; }
+  .sbtn { height: 36px; padding: 0 10px; }
+  .seg button, .viewswitch button { min-height: 40px; }
+  .barbar button { padding: 10px 12px; }
+  .bar:hover { transform: none; }
+  .progress { height: 6px; }
+  button, .bar, .progress, .tab-sel-bar { touch-action: manipulation; }
+}
+
+/* Telemóvel deitado: a página tem pouca altura */
+@media (max-height: 500px) and (orientation: landscape) {
+  .top { padding-block: 6px; flex-wrap: nowrap; }
+  .top-left { flex-basis: auto; flex: 1; min-width: 0; flex-wrap: nowrap; }
+  .brand-name { display: none; }
+  .song { min-width: 0; }
+  #songTitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-actions { flex-wrap: nowrap; }
   .btn.primary span { display: none; }
+  .notekey { display: none; }
+  .content { padding-top: 10px; }
+  .viewswitch { margin-bottom: 10px; }
+  .tabpanel { padding: 6px; }
+  .tabpanel .panel-head { display: none; }
+  #songMeta { display: none; }
+  .dock { padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); gap: 6px; }
+  .play { width: 40px; height: 40px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } .bar.playing, .bar:hover { transform: none; } }
 
@@ -349,6 +421,16 @@ a.btn { color: inherit; text-decoration: none; }
 .bm-reps { margin-left: auto; font: 500 13px var(--f-mono); color: var(--ink-soft); }
 .bm-reps strong { color: var(--ink-strong); }
 @media (max-width: 640px) {
+  /* Janela do compasso em ecrã inteiro no telemóvel */
+  .bar-modal { left: 0; top: 0; transform: none; width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .bm-head { padding: 12px 14px; }
+  .bm-nav { width: 100%; }
+  .bm-nav .btn { flex: 1; justify-content: center; }
+  .bm-body { flex: 1; }
+  .bm-foot { position: sticky; bottom: 0; background: var(--panel); padding: 12px 14px; }
+  .bm-play { width: 100%; justify-content: center; }
+  .bm-opt { flex: 1 1 auto; }
   .bm-body { padding: 20px 14px 6px; }
   .bm-staff .nt { min-width: 26px; height: 28px; font-size: 14px; padding: 0 3px; }
   .bm-count span { min-width: 0; font-size: 12px; height: 30px; }

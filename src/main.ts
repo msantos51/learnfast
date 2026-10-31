@@ -24,6 +24,10 @@ const select = (id: string) => $<HTMLSelectElement>(id);
 const base = new URL('.', location.href).href;
 const vendor = base + 'vendor/alphatab/';
 const PLAYING = 1; // alphaTab.synth.PlayerState.Playing
+/** Ecrã tátil: tocar num quadrado escolhe o compasso (sem abrir o teclado); editar é no botão "Editar". */
+const coarse = matchMedia('(pointer: coarse)').matches;
+/** Tablatura mais compacta em ecrãs estreitos (dois compassos por linha em vez de um). */
+const tabLayout = () => (innerWidth < 600 ? { scale: 0.78, barsPerRow: 2 } : { scale: 0.95, barsPerRow: -1 });
 
 interface State {
   score: Score | null;
@@ -267,7 +271,7 @@ function barCell(i: number) {
   if (ov()[i] != null) cell.classList.add('edited');
   if (st.fileFlag[i] && ov()[i] == null) cell.classList.add('file');
   const num = document.createElement('span'); num.className = 'num'; num.textContent = (mb.isRepeatStart ? '‖: ' : '') + (i + 1);
-  const ch = document.createElement('div'); ch.className = 'ch'; ch.contentEditable = 'true'; ch.spellcheck = false;
+  const ch = document.createElement('div'); ch.className = 'ch'; ch.contentEditable = coarse ? 'false' : 'true'; ch.spellcheck = false;
   ch.textContent = barText(i); ch.setAttribute('aria-label', 'Tom do compasso ' + (i + 1));
   ch.addEventListener('focus', () => { selectBar(i); if (st.ready && st.playingBar !== i) goBar(i, true); });
   ch.addEventListener('keydown', e => {
@@ -281,7 +285,16 @@ function barCell(i: number) {
     cell.classList.toggle('edited', ov()[i] != null); cell.classList.remove('file'); colorCell(cell, v); save();
     $<HTMLButtonElement>('bbReset').disabled = ov()[i] == null;
   });
-  cell.addEventListener('click', e => { if (e.target === cell) ch.focus(); });
+  cell.addEventListener('click', e => {
+    if (coarse) {
+      if (ch.isContentEditable) return; // a editar
+      selectBar(i);
+      if (st.ready && st.playingBar !== i) goBar(i, true);
+      return;
+    }
+    if (e.target === cell) ch.focus();
+  });
+  if (coarse) ch.addEventListener('blur', () => { ch.contentEditable = 'false'; });
   colorCell(cell, barText(i));
   cell.append(num, ch);
   if (mb.repeatCount > 0) { const rep = document.createElement('span'); rep.className = 'rep'; rep.textContent = ':‖ ×' + mb.repeatCount; cell.append(rep); }
@@ -299,6 +312,12 @@ function selectBar(i: number) {
   $('barbar').hidden = false;
   showTabSel(i);
 }
+$('bbEdit').addEventListener('click', () => {
+  const ch = document.querySelector<HTMLElement>('.bar[data-bar="' + st.selBar + '"] .ch');
+  if (!ch) return;
+  ch.contentEditable = 'true'; ch.focus(); selectText(ch);
+});
+$('bbEdit').hidden = !coarse;
 $('bbExpand').addEventListener('click', () => { if (st.selBar >= 0) { $('barbar').hidden = true; openBarModal(st.selBar); } });
 
 $('bbClose').addEventListener('click', () => { $('barbar').hidden = true; (document.activeElement as HTMLElement | null)?.blur(); });
@@ -605,7 +624,7 @@ function initApi() {
   const a = new at.AlphaTabApi($('tab'), {
     core: { fontDirectory: vendor + 'font/', scriptFile: vendor + 'alphaTab.min.js', engine: 'svg' },
     display: {
-      staveProfile: 'Tab', layoutMode: 'Page', scale: 0.95,
+      staveProfile: 'Tab', layoutMode: 'Page', ...tabLayout(),
       // Cores da tablatura a condizer com o tema
       resources: TAB_COLORS[currentTheme()],
     },
@@ -649,6 +668,15 @@ function initApi() {
     if (i === st.playingBar) return;
     leaveLoopIfOutside(i);
     st.playingBar = i; markPlaying(i); updateNow(i, 0);
+  });
+  // Ao rodar o telemóvel ou mudar o tamanho da janela, ajusta a densidade da tablatura.
+  let lastLayout = JSON.stringify(tabLayout());
+  addEventListener('resize', () => {
+    const now = JSON.stringify(tabLayout());
+    if (now === lastLayout) return;
+    lastLayout = now;
+    Object.assign(a.settings.display, tabLayout());
+    a.updateSettings(); a.render();
   });
   a.error.on(e => { $('status').textContent = 'Erro no leitor: ' + (e?.message ?? e); });
 }
@@ -747,6 +775,11 @@ const setPressed = (id: string, v: boolean) => $(id).setAttribute('aria-pressed'
 function toggle(id: string) { const v = $(id).getAttribute('aria-pressed') !== 'true'; setPressed(id, v); return v; }
 
 $('playBtn').addEventListener('click', () => st.api?.playPause());
+$('moreBtn').addEventListener('click', () => {
+  const open = !$('dock').classList.contains('tools-open');
+  $('dock').classList.toggle('tools-open', open);
+  $('moreBtn').setAttribute('aria-expanded', String(open));
+});
 $('stopBtn').addEventListener('click', () => {
   if (!st.api) return;
   delay.clear(); st.api.stop(); st.playingBar = -1; markPlaying(-1); updateNow(-1, 0);

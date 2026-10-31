@@ -80,6 +80,13 @@ todos os componentes de terceiros. Se acrescentares uma dependência que vá par
 
 O código deste repositório é © 2026 Miguel Santos, todos os direitos reservados (ver `LICENSE`).
 
+## Telemóvel
+
+O site adapta-se a telemóveis e tablets (vertical e horizontal): leitor compacto numa linha (as opções abrem no botão
+de ajustes), tablatura com dois compassos por linha, janela do compasso em ecrã inteiro e alvos de toque de 44 px.
+Em ecrãs táteis, tocar num quadrado escolhe o compasso sem abrir o teclado; para corrigir o tom usa-se "Editar".
+Pode ser adicionado ao ecrã principal (`manifest.webmanifest` e ícones em `public/`).
+
 ## Publicação
 
 Cada push para a `main` publica o site no GitHub Pages (`.github/workflows/deploy.yml`).
