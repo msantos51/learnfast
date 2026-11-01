@@ -5,7 +5,9 @@ Plataforma para aprender músicas a partir de ficheiros Guitar Pro. Carregas o f
 - divide a música pelas **secções** marcadas no ficheiro (Intro, Verso, Refrão…);
 - deteta o **tom de cada compasso** e mostra-o num quadrado com a **cor da nota** (convenção Boomwhackers: Dó vermelho … Si rosa);
 - mostra a **tablatura** sincronizada e toca a música, com **loop por secção**, velocidade de 25 % a 150 %, metrónomo, contagem e "tocar por cima" (silencia a tua pista);
-- deixa **editar** tudo (tons, nomes, dividir e juntar secções) e **copiar para o Excel**.
+- deixa **editar** tudo (tons, nomes, dividir secções) e **exportar o esquema para PDF**;
+- **guarda as músicas importadas** neste browser ("As minhas músicas") e abre a última ao voltar;
+- tem um **tutorial** na primeira visita e uma página **Como funciona** (`ajuda.html`).
 
 Os ficheiros são lidos só no browser: nada é enviado para um servidor.
 
@@ -31,6 +33,7 @@ npm run dev        # servidor local em http://localhost:5173
 ```
 index.html                 Página principal (estrutura e ícones)
 licencas.html              Termos, privacidade e licenças
+ajuda.html                 Página "Como funciona" (guia e perguntas frequentes)
 src/
   main.ts                  Interface: esquema, tablatura sincronizada, leitor, ajustes
   fonts.ts                 Fontes alojadas no site (Fontsource)
@@ -46,6 +49,8 @@ src/
     sync.ts                Atraso do cursor/esquema para compensar a latência do áudio
     theme.ts               Tema claro/escuro (guardado no browser) e cores da tablatura
     audio-unlock.ts        Som no iPhone mesmo com o interruptor de silêncio ligado
+    library.ts             "As minhas músicas": ficheiros importados guardados no browser (IndexedDB)
+    tour.ts                Tutorial da primeira visita (passos e destaques)
 tests/                     Testes (Vitest) e ficheiro .gp5 de exemplo
 scripts/
   copy-alphatab.mjs        Copia o alphaTab, a fonte e os sons para public/vendor
@@ -73,6 +78,12 @@ sons Sonivox (Apache 2.0) vêm no pacote do alphaTab; o script copia também os 
 
 Geist e Geist Mono (OFL) vêm do [Fontsource](https://fontsource.org) e são servidas pelo próprio
 site (`src/fonts.ts`). Não há pedidos a servidores de terceiros, o que evita enviar o IP de quem visita à Google.
+
+## Músicas guardadas e tutorial
+
+Cada ficheiro importado é guardado no IndexedDB do browser (base `mapa-de-compassos`, identificado por
+título | artista | nº de compassos), junto com as correções que já ficavam no `localStorage`. Nada vai para um
+servidor. O tutorial aparece só na primeira visita (`mapa:tour-visto`) e pode ser revisto no menu "?".
 
 ## Termos, privacidade e licenças
 

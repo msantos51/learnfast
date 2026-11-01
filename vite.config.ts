@@ -10,6 +10,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         licencas: resolve(__dirname, 'licencas.html'),
+        ajuda: resolve(__dirname, 'ajuda.html'),
       },
     },
   },

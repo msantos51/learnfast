@@ -9,6 +9,8 @@ import { barView, type BarView } from './analysis/bar';
 import { autoSub, beatInfo, countLabels, slotOf, type Sub } from './app/count';
 import { VisualDelay } from './app/sync';
 import { releaseAudio, unlockAudio } from './app/audio-unlock';
+import { TOUR_STEPS, markTourSeen, tourSeen, visibleTarget } from './app/tour';
+import { askPersistentStorage, deleteSong, getSong, listSongs, relativeDay, saveSong, touchSong } from './app/library';
 import { TAB_COLORS, applyTheme, currentTheme, type Theme } from './app/theme';
 
 type Score = AlphaTab.model.Score;
@@ -116,13 +118,13 @@ $('syncMinus').addEventListener('click', () => setSync(st.syncMs - 10));
 $('syncPlus').addEventListener('click', () => setSync(st.syncMs + 10));
 
 // ---------- Carregar música ----------
-function loadBytes(bytes: Uint8Array, name: string, isSample: boolean) {
+function loadBytes(bytes: Uint8Array, name: string, isSample: boolean): boolean {
   let s: Score;
   try { s = parseScore(at, bytes); }
   catch (e) {
     showErr('Não consegui ler “' + name + '”: o ficheiro está danificado ou num formato que não é suportado. Aceita ficheiros Guitar Pro 3 a 8 (.gp3, .gp4, .gp5, .gpx, .gp) e MusicXML. Se o ficheiro abre no Guitar Pro, experimenta guardá-lo como .gp5.');
     console.error(e);
-    return;
+    return false;
   }
   showErr('');
   st.score = s; st.isSample = isSample;
@@ -141,6 +143,7 @@ function loadBytes(bytes: Uint8Array, name: string, isSample: boolean) {
   if (saved?.perRow) { st.perRow = saved.perRow; select('perRow').value = String(saved.perRow); }
 
   renderInfo(name); renderTrackControls(); detect(); renderChart(); renderTab(); updateNow(-1, 0);
+  return true;
 }
 
 function renderInfo(name: string) {
@@ -409,13 +412,14 @@ $('themeBtn').addEventListener('click', () => setTheme(currentTheme() === 'light
 $('themeBtn').setAttribute('aria-label', 'Mudar para o tema ' + (currentTheme() === 'light' ? 'escuro' : 'claro'));
 
 // ---------- Ajustes ----------
-function openSettings(v: boolean) {
-  $('settings').hidden = !v; $('scrim').hidden = !v; $('settingsBtn').setAttribute('aria-expanded', String(v));
-  (v ? $('closeSettings') : $('settingsBtn')).focus();
+function openSettings(v: boolean, focus = true) {
+  if (v) openLibrary(false);
+  $('settings').hidden = !v; $('scrim').hidden = !v && $('library').hidden; $('settingsBtn').setAttribute('aria-expanded', String(v));
+  if (focus) (v ? $('closeSettings') : $('settingsBtn')).focus();
 }
 $('settingsBtn').addEventListener('click', () => openSettings(true));
 $('closeSettings').addEventListener('click', () => openSettings(false));
-$('scrim').addEventListener('click', () => openSettings(false));
+$('scrim').addEventListener('click', () => { openSettings(false, false); openLibrary(false); });
 input('optColors').addEventListener('change', renderChart);
 ['optMinor', 'optSplit', 'optFileChords', 'optNames', 'optAcc'].forEach(id => $(id).addEventListener('change', () => { detect(); renderChart(); }));
 select('perRow').addEventListener('change', () => { st.perRow = +select('perRow').value; save(); renderChart(); });
@@ -814,7 +818,15 @@ $('muteBtn').addEventListener('click', () => { toggle('muteBtn'); applyMute(); }
 
 // Atalhos de teclado
 addEventListener('keydown', e => {
+  if (tour.open) {
+    if (e.key === 'Escape') { e.preventDefault(); endTour(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); $('tourNext').click(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); $('tourPrev').click(); }
+    return;
+  }
+  if (e.key === 'Escape' && !$('helpMenu').hidden) { openHelp(false); return; }
   if (e.key === 'Escape' && !$('settings').hidden) { openSettings(false); return; }
+  if (e.key === 'Escape' && !$('library').hidden) { openLibrary(false); $('libraryBtn').focus(); return; }
   if (e.key === 'Escape' && modal.open) { closeBarModal(); return; }
   const t = e.target as HTMLElement;
   if (t.isContentEditable || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(t.tagName) || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -845,8 +857,71 @@ setView('chart');
 function readFile(f: File | undefined) {
   if (!f) return;
   const r = new FileReader();
-  r.onload = () => { st.api?.stop(); clearLoop(); loadBytes(new Uint8Array(r.result as ArrayBuffer), f.name, false); };
+  r.onload = () => {
+    st.api?.stop(); clearLoop();
+    const bytes = new Uint8Array(r.result as ArrayBuffer);
+    if (!loadBytes(bytes, f.name, false)) return;
+    // Guarda a música neste browser para a próxima vez
+    const s = score();
+    saveSong({ id: st.fileKey, fileName: f.name, title: $('songTitle').textContent || f.name, artist: s.artist || '', bars: s.masterBars.length }, bytes)
+      .then(() => { askPersistentStorage(); renderLibrary(); toast('Guardada em “As minhas músicas”.'); })
+      .catch(() => toast('Não foi possível guardar a música neste browser (modo privado?).'));
+    openLibrary(false);
+  };
   r.readAsArrayBuffer(f);
+}
+
+// ---------- As minhas músicas ----------
+function openLibrary(v: boolean) {
+  if (v) { renderLibrary(); openSettings(false, false); }
+  $('library').hidden = !v; $('scrim').hidden = !v && $('settings').hidden;
+  $('libraryBtn').setAttribute('aria-expanded', String(v));
+  if (v) $('closeLibrary').focus();
+}
+$('libraryBtn').addEventListener('click', () => openLibrary(true));
+$('closeLibrary').addEventListener('click', () => { openLibrary(false); $('libraryBtn').focus(); });
+$('libSample').addEventListener('click', () => { openLibrary(false); openSample(); });
+
+const ICON_TRASH = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
+async function renderLibrary() {
+  const list = $('libList');
+  let songs: Awaited<ReturnType<typeof listSongs>> = [];
+  try { songs = await listSongs(); } catch { /* sem IndexedDB */ }
+  list.innerHTML = '';
+  $('libEmpty').hidden = songs.length > 0;
+  for (const song of songs) {
+    const li = document.createElement('li'); li.className = 'lib-item' + (song.id === st.fileKey && !st.isSample ? ' cur' : '');
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'lib-open';
+    const t = document.createElement('span'); t.className = 'lib-title'; t.textContent = song.title;
+    const m = document.createElement('span'); m.className = 'lib-meta';
+    m.textContent = [song.artist, song.bars + ' compassos', 'aberta ' + relativeDay(song.openedAt)].filter(Boolean).join(' · ');
+    open.append(t, m);
+    open.addEventListener('click', () => openSaved(song.id));
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'lib-del'; del.innerHTML = ICON_TRASH;
+    del.setAttribute('aria-label', 'Apagar ' + song.title);
+    del.addEventListener('click', () => {
+      // Confirmação no próprio item (sem janelas do browser)
+      const c = document.createElement('span'); c.className = 'lib-confirm';
+      const yes = document.createElement('button'); yes.type = 'button'; yes.className = 'danger'; yes.textContent = 'Apagar';
+      const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Cancelar';
+      yes.addEventListener('click', async () => { await deleteSong(song.id).catch(() => {}); renderLibrary(); toast('“' + song.title + '” apagada deste browser.'); });
+      no.addEventListener('click', () => renderLibrary());
+      c.append(yes, no); del.replaceWith(c); no.focus();
+    });
+    li.append(open, del); list.append(li);
+  }
+}
+async function openSaved(id: string) {
+  const song = await getSong(id).catch(() => null);
+  if (!song) { toast('Não encontrei essa música neste browser.'); renderLibrary(); return; }
+  st.api?.stop(); clearLoop();
+  if (loadBytes(song.bytes, song.fileName, false)) { touchSong(id).catch(() => {}); openLibrary(false); }
+}
+function openSample() {
+  return fetch(base + 'exemplo.gp5')
+    .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
+    .then(b => { st.api?.stop(); clearLoop(); loadBytes(new Uint8Array(b), 'Exemplo', true); })
+    .catch(() => { $('songTitle').textContent = 'Carrega um ficheiro Guitar Pro para começar'; });
 }
 input('fileInput').addEventListener('change', e => {
   const el = e.target as HTMLInputElement; readFile(el.files?.[0]); el.value = '';
@@ -857,8 +932,69 @@ addEventListener('dragleave', () => { dragN = Math.max(0, dragN - 1); if (!dragN
 addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', e => { e.preventDefault(); dragN = 0; $('drop').hidden = true; readFile(e.dataTransfer?.files[0]); });
 
-// Música de exemplo ao abrir
-fetch(base + 'exemplo.gp5')
-  .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })
-  .then(b => loadBytes(new Uint8Array(b), 'Exemplo', true))
-  .catch(() => { $('songTitle').textContent = 'Carrega um ficheiro Guitar Pro para começar'; });
+// ---------- Ajuda e tutorial ----------
+function openHelp(v: boolean) {
+  $('helpMenu').hidden = !v; $('helpBtn').setAttribute('aria-expanded', String(v));
+}
+$('helpBtn').addEventListener('click', e => { e.stopPropagation(); openHelp($('helpMenu').hidden); });
+document.addEventListener('click', e => { if (!(e.target as HTMLElement).closest('.help-wrap')) openHelp(false); });
+$('tourBtn').addEventListener('click', () => { openHelp(false); startTour(); });
+
+const tour = { i: 0, open: false };
+function startTour() {
+  openSettings(false, false); openLibrary(false); closeBarModal();
+  tour.i = 0; tour.open = true;
+  $('tour').hidden = false;
+  $('tourDots').innerHTML = TOUR_STEPS.map(() => '<i></i>').join('');
+  showTourStep();
+  $<HTMLButtonElement>('tourNext').focus();
+}
+function endTour() {
+  tour.open = false; $('tour').hidden = true; markTourSeen();
+}
+function showTourStep() {
+  const step = TOUR_STEPS[tour.i], last = tour.i === TOUR_STEPS.length - 1;
+  $('tourStep').textContent = (tour.i + 1) + ' / ' + TOUR_STEPS.length;
+  $('tourTitle').textContent = step.title;
+  $('tourText').textContent = step.text;
+  $('tourDots').querySelectorAll('i').forEach((d, j) => d.classList.toggle('on', j === tour.i));
+  $<HTMLButtonElement>('tourPrev').hidden = tour.i === 0;
+  $('tourNext').textContent = last ? 'Começar' : tour.i === 0 ? 'Mostrar' : 'Seguinte';
+  $<HTMLButtonElement>('tourSkip').hidden = last;
+  const target = visibleTarget(step);
+  if (target) target.scrollIntoView({ block: 'nearest' });
+  requestAnimationFrame(() => placeTour(target));
+}
+/** Destaca o elemento e põe o cartão ao lado (por baixo ou por cima), sempre dentro do ecrã. */
+function placeTour(target: HTMLElement | null) {
+  const spot = $('tourSpot'), card = $('tourCard');
+  const cw = card.offsetWidth, ch = card.offsetHeight, m = 12;
+  if (!target) {
+    spot.className = 'tour-spot none'; spot.removeAttribute('style');
+    card.style.left = (innerWidth - cw) / 2 + 'px'; card.style.top = Math.max(m, (innerHeight - ch) / 2) + 'px';
+    return;
+  }
+  const r = target.getBoundingClientRect(), pad = 6;
+  spot.className = 'tour-spot';
+  Object.assign(spot.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + 2 * pad + 'px', height: r.height + 2 * pad + 'px' });
+  const below = r.bottom + pad + m, above = r.top - pad - m - ch;
+  let top = below + ch <= innerHeight - m ? below : above >= m ? above : Math.max(m, innerHeight - ch - m);
+  // Destinos muito altos (o esquema, o leitor): cartão por cima do centro do destino
+  if (r.height > innerHeight * 0.6) top = Math.max(m, Math.min(innerHeight - ch - m, r.top + 40));
+  const left = Math.max(m, Math.min(innerWidth - cw - m, r.left + r.width / 2 - cw / 2));
+  card.style.left = left + 'px'; card.style.top = top + 'px';
+}
+$('tourNext').addEventListener('click', () => {
+  if (tour.i === TOUR_STEPS.length - 1) { endTour(); return; }
+  tour.i++; showTourStep();
+});
+$('tourPrev').addEventListener('click', () => { if (tour.i > 0) { tour.i--; showTourStep(); } });
+$('tourSkip').addEventListener('click', endTour);
+addEventListener('resize', () => { if (tour.open) placeTour(visibleTarget(TOUR_STEPS[tour.i])); });
+
+// Ao abrir: a última música aberta neste browser; se não houver, a música de exemplo.
+listSongs()
+  .then(songs => (songs.length ? openSaved(songs[0].id) : openSample()))
+  .catch(() => openSample())
+  // Primeira visita: tutorial (depois de a música aparecer, para os destaques ficarem no sítio certo)
+  .finally(() => { if (!tourSeen()) setTimeout(startTour, 600); });
