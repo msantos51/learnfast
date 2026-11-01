@@ -437,3 +437,54 @@ a.btn { color: inherit; text-decoration: none; }
   .bm-count span.beat { font-size: 15px; }
   .bm-reps { margin-left: 0; }
 }
+
+/* ---------- As minhas músicas ---------- */
+.sheet.left { right: auto; left: 0; border-left: 0; border-right: 1px solid var(--line);
+  padding-left: max(22px, env(safe-area-inset-left, 0px)); padding-right: 22px; }
+.lib-add { justify-content: center; }
+.lib-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lib-item { display: flex; align-items: center; gap: 4px; border-radius: var(--r-md); }
+.lib-item.cur { background: var(--panel-2); }
+.lib-open { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink); }
+.lib-open:hover { background: var(--panel-2); }
+.lib-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-meta { font-size: 12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-item.cur .lib-title::after { content: " · aberta"; color: var(--accent-text); font-weight: 500; font-size: 12px; }
+.lib-del { flex: none; width: 36px; height: 36px; border-radius: 8px; border: 0; background: transparent; color: var(--ink-soft); display: grid; place-items: center; }
+.lib-del:hover { background: var(--panel-2); color: var(--ink); }
+.lib-confirm { display: flex; align-items: center; gap: 4px; flex: none; font-size: 13px; }
+.lib-confirm button { height: 32px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--panel); font-weight: 600; font-size: 13px; }
+.lib-confirm button.danger { background: #d4382c; border-color: #d4382c; color: #fff; }
+@media (max-width: 600px) { #libraryBtn span { display: none; } #libraryBtn { width: 44px; padding: 0; justify-content: center; } }
+
+/* ---------- Ajuda ---------- */
+.help-wrap { position: relative; }
+.help-menu { position: absolute; z-index: 15; right: 0; top: calc(100% + 6px); min-width: 230px; padding: 6px; border-radius: var(--r-md);
+  background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); display: grid; gap: 2px; }
+.help-menu a, .help-menu button { display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; border: 0; background: transparent; color: var(--ink); font-size: 14px; text-decoration: none; }
+.help-menu a:hover, .help-menu button:hover { background: var(--panel-2); }
+
+/* ---------- Tutorial ---------- */
+.tour { position: fixed; inset: 0; z-index: 40; }
+.tour-spot { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(7, 8, 11, .72), 0 0 0 2px var(--accent-text); transition: all .25s ease; pointer-events: none; }
+.tour-spot.none { left: 50%; top: 50%; width: 0; height: 0; box-shadow: 0 0 0 9999px rgba(7, 8, 11, .72); }
+.tour-card { position: fixed; width: min(380px, calc(100% - 32px)); padding: 18px 18px 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: var(--shadow); transition: left .25s ease, top .25s ease; }
+.tour-step { font: 500 11px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-text); }
+.tour-card h2 { margin: 6px 0 6px; font-size: 18px; font-weight: 600; text-wrap: balance; }
+.tour-card p { margin: 0; font-size: 14px; color: var(--ink); line-height: 1.55; }
+.tour-dots { display: flex; gap: 5px; margin: 14px 0 12px; }
+.tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); }
+.tour-dots i.on { width: 18px; border-radius: 3px; background: var(--accent-text); }
+.tour-actions { display: flex; align-items: center; gap: 6px; }
+.tour-gap { flex: 1; }
+@media (prefers-reduced-motion: reduce) { .tour-spot, .tour-card { transition: none; } }
+
+/* ---------- Página "Como funciona" ---------- */
+.doc-body .steps { padding-left: 22px; display: grid; gap: 10px; }
+.note-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; margin: 14px 0 18px; max-width: 70ch; }
+.note-legend span { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; font-size: 13px;
+  background: color-mix(in srgb, var(--nc) var(--tint), var(--panel)); box-shadow: inset 0 -3px 0 var(--nc); }
+.note-legend b { font-weight: 700; min-width: 2.2em; }
+.doc-body details { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); padding: 0 14px; margin-bottom: 8px; max-width: 70ch; }
+.doc-body summary { cursor: pointer; padding: 12px 0; font-weight: 600; }
+.doc-body details p { margin: 0 0 12px; color: var(--ink); }
