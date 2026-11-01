@@ -4,7 +4,7 @@ Plataforma para aprender músicas a partir de ficheiros Guitar Pro. Carregas o f
 
 - divide a música pelas **secções** marcadas no ficheiro (Intro, Verso, Refrão…);
 - deteta o **tom de cada compasso** e mostra-o num quadrado com a **cor da nota** (convenção Boomwhackers: Dó vermelho … Si rosa);
-- mostra a **tablatura** sincronizada e toca a música, com **loop por secção**, velocidade de 25 % a 150 %, metrónomo, contagem e "tocar por cima" (silencia a tua pista);
+- mostra a **tablatura** sincronizada e toca a música, com **loop por secção**, velocidade de 25 % a 150 %, metrónomo, contagem e "tocar por cima" (silencia a tua pista) ou "só o meu instrumento" (ouve-se só a tua pista);
 - deixa **editar** tudo (tons, nomes, dividir secções) e **exportar o esquema para PDF**;
 - **guarda as músicas importadas** neste browser ("As minhas músicas") e abre a última ao voltar;
 - tem um **tutorial** na primeira visita e uma página **Como funciona** (`ajuda.html`).

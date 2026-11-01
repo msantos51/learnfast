@@ -195,7 +195,7 @@ svg.f { fill: currentColor; stroke: none; }
 .speed input { width: 100px; accent-color: var(--accent-text); }
 .speed output { font-family: var(--f-mono); font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
 .tbtn { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--panel); font-size: 13px; font-weight: 500; }
-.tbtn:hover:not(:disabled) { background: var(--panel-2); }
+.tbtn:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--panel-2); }
 .tbtn[aria-pressed="true"] { background: var(--ink-strong); color: var(--bg); border-color: var(--ink-strong); }
 .tbtn.accent[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 

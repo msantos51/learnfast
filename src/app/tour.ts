@@ -41,7 +41,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     title: 'O leitor',
-    text: 'Tocar, compasso anterior e seguinte, velocidade, loop, metrónomo, contagem e “tocar por cima” (silencia o teu instrumento). No computador, Espaço toca e pausa.',
+    text: 'Tocar, compasso anterior e seguinte, velocidade, loop, metrónomo, contagem e “tocar por cima” (silencia o teu instrumento) ou “só o meu” (ouves só o teu instrumento). No computador, Espaço toca e pausa.',
     targets: ['#dock'],
   },
   {
