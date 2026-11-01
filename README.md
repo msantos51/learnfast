@@ -45,6 +45,7 @@ src/
     pdf.ts                 Exportar o esquema para PDF (jsPDF, carregado só quando se exporta)
     sync.ts                Atraso do cursor/esquema para compensar a latência do áudio
     theme.ts               Tema claro/escuro (guardado no browser) e cores da tablatura
+    audio-unlock.ts        Som no iPhone mesmo com o interruptor de silêncio ligado
 tests/                     Testes (Vitest) e ficheiro .gp5 de exemplo
 scripts/
   copy-alphatab.mjs        Copia o alphaTab, a fonte e os sons para public/vendor

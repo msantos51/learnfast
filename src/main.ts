@@ -8,6 +8,7 @@ import { exportPdf } from './app/pdf';
 import { barView, type BarView } from './analysis/bar';
 import { autoSub, beatInfo, countLabels, slotOf, type Sub } from './app/count';
 import { VisualDelay } from './app/sync';
+import { releaseAudio, unlockAudio } from './app/audio-unlock';
 import { TAB_COLORS, applyTheme, currentTheme, type Theme } from './app/theme';
 
 type Score = AlphaTab.model.Score;
@@ -619,6 +620,17 @@ $('bmNext').addEventListener('click', () => setModalBar(modal.bar + 1));
 $('bmClose').addEventListener('click', closeBarModal);
 $('bmScrim').addEventListener('click', closeBarModal);
 
+// ---------- Som no telemóvel ----------
+// No iPhone o som do leitor só sai com o interruptor de silêncio ligado se for desbloqueado num toque.
+for (const ev of ['pointerdown', 'keydown'] as const) {
+  addEventListener(ev, e => {
+    const t = e.target as HTMLElement | null;
+    const startsAudio = ev === 'keydown' ? (e as KeyboardEvent).key === ' '
+      : !!t?.closest('#playBtn, #bmPlay, #tsLoop, #bbPlay, .sbtn, #nextBtn, #prevBtn, #progress');
+    if (startsAudio) unlockAudio();
+  }, { capture: true });
+}
+
 // ---------- Leitor (alphaTab) ----------
 function initApi() {
   const a = new at.AlphaTabApi($('tab'), {
@@ -647,7 +659,7 @@ function initApi() {
   a.renderFinished.on(() => { $('tabLoading').hidden = true; if (st.tabSel >= 0 && !modal.open) placeTabSel(); });
   a.playerStateChanged.on(e => {
     const playing = e.state === PLAYING;
-    if (!playing) delay.clear();
+    if (!playing) { delay.clear(); releaseAudio(); }
     $('playIcon').innerHTML = playing ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
     $('playBtn').setAttribute('aria-label', playing ? 'Pausa' : 'Tocar');
     setStatus(playing ? 'A tocar' : 'Em pausa');
