@@ -142,6 +142,7 @@
       <button class="tbtn" id="metroBtn" aria-pressed="false" disabled title="Metrónomo"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l3.5 18h-13z"/><path d="M12 16l6-8"/></svg><span>Metrónomo</span></button>
       <button class="tbtn" id="countBtn" aria-pressed="false" disabled title="Contagem inicial"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg><span>Contagem</span></button>
       <button class="tbtn" id="muteBtn" aria-pressed="false" disabled title="Silenciar o meu instrumento e tocar por cima"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="3" y="14" width="4" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg><span>Tocar por cima</span></button>
+      <button class="tbtn" id="soloBtn" aria-pressed="false" disabled title="Só o meu instrumento: silencia o resto da banda" aria-label="Só o meu instrumento"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg><span>Só o meu</span></button>
     </div>
   </div>
 </div>
@@ -217,7 +218,7 @@
   <fieldset>
     <legend>O meu instrumento</legend>
     <select id="viewTrack" aria-label="O meu instrumento"></select>
-    <span class="hint">O tom de cada compasso é detetado só a partir deste instrumento. É também o que aparece na tablatura e o que fica em silêncio com “Tocar por cima”.</span>
+    <span class="hint">O tom de cada compasso é detetado só a partir deste instrumento. É também o que aparece na tablatura e o que fica em silêncio com “Tocar por cima” ou o único que se ouve com “Só o meu instrumento”.</span>
   </fieldset>
   <fieldset>
     <legend>Esquema</legend>

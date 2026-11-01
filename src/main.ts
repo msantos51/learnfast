@@ -654,7 +654,7 @@ function initApi() {
   a.soundFontLoad.on(e => { if (e.total) $('status').textContent = 'A carregar os sons… ' + Math.round((e.loaded / e.total) * 100) + '%'; });
   a.playerReady.on(() => {
     st.ready = true;
-    ['playBtn', 'stopBtn', 'prevBtn', 'nextBtn', 'loopBtn', 'metroBtn', 'countBtn', 'muteBtn'].forEach(id => ($<HTMLButtonElement>(id).disabled = false));
+    ['playBtn', 'stopBtn', 'prevBtn', 'nextBtn', 'loopBtn', 'metroBtn', 'countBtn', 'muteBtn', 'soloBtn'].forEach(id => ($<HTMLButtonElement>(id).disabled = false));
     $('status').textContent = 'Pronto a tocar';
     a.playbackSpeed = +input('speed').value / 100;
     applyMute();
@@ -714,11 +714,16 @@ function renderTab() {
   if (st.ready) applyMute();
 }
 
+/** "Tocar por cima" silencia o instrumento selecionado; "Só o meu instrumento" deixa só esse a tocar. */
 function applyMute() {
   if (!st.api || !st.score) return;
-  const on = $('muteBtn').getAttribute('aria-pressed') === 'true';
-  st.api.changeTrackMute(st.score.tracks, false);
-  if (on) st.api.changeTrackMute([st.score.tracks[st.viewTrack]], true);
+  const all = st.score.tracks, mine = [all[st.viewTrack]];
+  const mute = $('muteBtn').getAttribute('aria-pressed') === 'true';
+  const solo = $('soloBtn').getAttribute('aria-pressed') === 'true';
+  st.api.changeTrackMute(all, false);
+  st.api.changeTrackSolo(all, false);
+  if (mute) st.api.changeTrackMute(mine, true);
+  if (solo) st.api.changeTrackSolo(mine, true);
 }
 
 function barTick(i: number) {
@@ -814,7 +819,8 @@ $('loopBtn').addEventListener('click', () => {
 });
 $('metroBtn').addEventListener('click', () => { api().metronomeVolume = toggle('metroBtn') ? 1 : 0; });
 $('countBtn').addEventListener('click', () => { api().countInVolume = toggle('countBtn') ? 1 : 0; });
-$('muteBtn').addEventListener('click', () => { toggle('muteBtn'); applyMute(); });
+$('muteBtn').addEventListener('click', () => { if (toggle('muteBtn')) setPressed('soloBtn', false); applyMute(); });
+$('soloBtn').addEventListener('click', () => { if (toggle('soloBtn')) setPressed('muteBtn', false); applyMute(); });
 
 // Atalhos de teclado
 addEventListener('keydown', e => {
